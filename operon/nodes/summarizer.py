@@ -1,56 +1,39 @@
-"""Summarizer Node for Operon.
+"""Build factual, run-scoped evidence with a reproducible integrity digest."""
 
-Generates a concise completion report, state diffs, and audit evidence packet.
-"""
-
+import hashlib
+import json
 import time
-from typing import Dict, Any
-from operon.state import OperonState, EvidencePacket
-from operon.environment.erp_system import default_erp
-from operon.memory.scratchpad import Scratchpad
+from operon.state import EvidencePacket
+from operon.environment.context import get_erp
 
-def summarizer_node(state: OperonState) -> Dict[str, Any]:
-    """Generate concise summary and evidence packet for the user."""
-    start_time = state.get("start_time", time.time())
-    duration = round(time.time() - start_time, 2)
-    
-    actions = state.get("action_history", [])
+
+def evidence_digest(packet):
+    data = packet.model_dump(mode="json") if hasattr(packet, "model_dump") else dict(packet)
+    data.pop("evidence_sha256", None)
+    return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+def summarizer_node(state):
     verification = state.get("verification_result")
-    scratchpad = Scratchpad.from_dict(state.get("scratchpad", {}))
-    state_diff = default_erp.compute_state_diff()
-    
-    status = "completed" if (verification and verification.is_verified) else "failed"
-    
-    # Concise narrative summary
-    if status == "completed":
-        inv_num = scratchpad.get_entity("invoice_number", "INV-X-2026-003")
-        amt = scratchpad.get_entity("amount", 13446.00)
-        due = scratchpad.get_entity("due_date", "2026-04-10")
-        vendor = scratchpad.get_entity("vendor_name", "Company X Solutions")
-        
-        summary = (
-            f"Successfully completed task: Identified latest invoice ({inv_num}) from {vendor}, "
-            f"extracted balance due (${amt:,.2f}) and due date ({due}), entered record into internal ERP, "
-            f"and verified ledger entry."
-        )
+    diff = get_erp().compute_state_diff(state.get("baseline_snapshot"), state.get("baseline_audit_count", 0))
+    verified = bool(verification and verification.is_verified)
+    changed = diff["new_invoices_created"] + diff["new_vendors_created"]
+    status = "completed" if verified else "partially_completed" if changed else "failed"
+    prefix = ("Preview verified in an isolated ERP copy. " if verified else "Preview in an isolated ERP copy. ") if state.get("mode") == "preview" else ""
+    if verified:
+        summary = prefix + verification.evidence + "."
+        if not changed:
+            summary += " Matching records already existed; no new records were needed."
     else:
-        summary = (
-            f"Task ended with discrepancies: {verification.discrepancies if verification else 'Execution aborted'}."
-        )
-
-    packet = EvidencePacket(
-        task=state["task"],
-        status=status,
-        summary=summary,
-        total_actions_taken=len(actions),
-        execution_time_seconds=duration,
-        verification=verification,
-        created_records=state_diff.get("new_invoices_created", []),
-        state_diffs=state_diff,
-        action_log=actions
-    )
-    
-    return {
-        "evidence_packet": packet,
-        "status": status
-    }
+        summary = prefix + "Task could not be verified: " + "; ".join(verification.discrepancies if verification else ["Execution aborted."])
+    packet = EvidencePacket(task=state["task"], status=status, summary=summary,
+        total_actions_taken=len(state.get("action_history", [])),
+        execution_time_seconds=round(time.time() - state.get("start_time", time.time()), 3),
+        verification=verification, created_records=changed, state_diffs=diff,
+        action_log=state.get("action_history", []), plan=state.get("plan", []),
+        run_id=state.get("run_id", ""), mode=state.get("mode", "execute"),
+        source_documents=state.get("scratchpad", {}).get("source_documents", []),
+        policy_checks=state.get("policy_checks", []), errors=state.get("errors", []),
+        planner_backend=state.get("planner_backend", "offline"))
+    packet.evidence_sha256 = evidence_digest(packet)
+    return {"evidence_packet": packet, "status": status}

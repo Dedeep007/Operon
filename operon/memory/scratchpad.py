@@ -15,6 +15,7 @@ class Scratchpad(BaseModel):
     files_found: List[str] = Field(default_factory=list, description="Discovered file paths")
     step_results: Dict[int, Any] = Field(default_factory=dict, description="Results indexed by step_id")
     notes: List[str] = Field(default_factory=list, description="Reasoning notes accumulated during task")
+    source_documents: List[Dict[str, Any]] = Field(default_factory=list)
 
     def record_entity(self, key: str, value: Any):
         """Store an entity in working memory."""
@@ -40,6 +41,15 @@ class Scratchpad(BaseModel):
         if not isinstance(data, dict):
             return
 
+        if data.get("file_path") and data.get("sha256"):
+            document = {"file_path": data["file_path"], "sha256": data["sha256"]}
+            if document not in self.source_documents:
+                self.source_documents.append(document)
+        if "vendor_data" in data:
+            self.extracted_data["vendor_profile"] = data["vendor_data"]
+            for key, value in data["vendor_data"].items():
+                self.record_entity("vendor_name" if key == "name" else key, value)
+
         # If an invoice file was found or parsed
         if "invoice_data" in data:
             inv = data["invoice_data"]
@@ -61,6 +71,8 @@ class Scratchpad(BaseModel):
 
         # If direct invoice extraction
         if "amount" in data and "due_date" in data:
+            if tool_name == "extract_invoice_data":
+                self.extracted_data["invoice_source"] = dict(data)
             if data.get("invoice_number"):
                 self.record_entity("invoice_number", data["invoice_number"])
             self.record_entity("amount", data["amount"])
@@ -164,7 +176,8 @@ class Scratchpad(BaseModel):
             "extracted_data": self.extracted_data,
             "files_found": self.files_found,
             "step_results": self.step_results,
-            "notes": self.notes
+            "notes": self.notes,
+            "source_documents": self.source_documents,
         }
 
     @classmethod
@@ -182,5 +195,6 @@ class Scratchpad(BaseModel):
             extracted_data=data.get("extracted_data", {}),
             files_found=data.get("files_found", []),
             step_results=sr,
-            notes=data.get("notes", [])
+            notes=data.get("notes", []),
+            source_documents=data.get("source_documents", []),
         )

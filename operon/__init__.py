@@ -8,7 +8,7 @@ from operon.agent import OperonAgent
 from operon.state import OperonState, PlanStep, ActionRecord, ErrorRecord, VerificationResult, EvidencePacket
 from operon.config import settings
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "OperonAgent",
     "OperonState",

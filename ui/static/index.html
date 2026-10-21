@@ -1,241 +1,281 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Operon — Autonomous Enterprise AI Task Worker</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <div class="app-container">
-        <!-- Top Navigation Bar -->
-        <header class="navbar">
-            <div class="brand">
-                <div class="brand-badge">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                        <path d="M2 17l10 5 10-5"></path>
-                        <path d="M2 12l10 5 10-5"></path>
-                    </svg>
-                </div>
-                <div class="brand-text">
-                    <h1>OPERON</h1>
-                    <span class="badge-tag">AUTONOMOUS WORKER</span>
-                </div>
-            </div>
-            <div class="system-pills">
-                <div class="pill pill-model">
-                    <span class="status-dot active"></span>
-                    <span class="pill-label">LLM</span>
-                    <strong id="model-name">Qwen 3.8 27B (Groq LPU)</strong>
-                </div>
-                <div class="pill pill-graph">
-                    <span class="status-dot active"></span>
-                    <span class="pill-label">Engine</span>
-                    <strong>LangGraph StateGraph</strong>
-                </div>
-                <div class="pill pill-erp">
-                    <span class="status-dot active"></span>
-                    <span class="pill-label">ERP</span>
-                    <strong>Transactional Ledger</strong>
-                </div>
-                <button id="btn-reset-erp" class="btn-sm btn-ghost" title="Reset ERP to initial state">Reset ERP</button>
-            </div>
-        </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f5f1" />
+    <title>Operon · Task workspace</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="wordmark" href="/" aria-label="Operon home"
+        ><span class="brand-symbol" aria-hidden="true">o.</span>operon<span
+          class="edition"
+          >WORKSPACE</span
+        ></a
+      >
+      <button
+        id="history-toggle"
+        class="text-button history-toggle"
+        aria-expanded="false"
+        aria-controls="run-history"
+      >
+        Recent tasks
+      </button>
+      <div class="nav-item"><span aria-hidden="true">↳</span> Task desk</div>
+      <div class="sidebar-section">
+        <h2>Recent tasks</h2>
+        <button
+          id="btn-refresh-history"
+          class="text-button"
+          aria-label="Refresh task history"
+        >
+          ↻
+        </button>
+      </div>
+      <nav id="run-history" class="run-history" aria-label="Task history">
+        <p class="muted">No tasks yet.</p>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="connection-dot"></span>
+        <div>
+          <strong>Company sandbox</strong>
+          <p>Local files & simulated ERP</p>
+        </div>
+      </div>
+    </aside>
 
-        <!-- Goal Formulation Hero -->
-        <section class="goal-hero">
-            <div class="hero-header">
-                <h2>Autonomous Goal Specification</h2>
-                <p>Submit any natural language enterprise request. Operon plans multi-step actions, invokes tools, navigates files & ERP, recovers from failures, and performs independent ground-truth verification.</p>
-            </div>
-            
-            <div class="input-card">
-                <div class="input-wrapper">
-                    <textarea id="task-input" rows="2" placeholder="e.g. Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</textarea>
-                    <button id="btn-run" class="btn-primary">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        <span class="btn-text">Execute Autonomously</span>
-                    </button>
-                </div>
-                
-                <div class="preset-chips">
-                    <span class="chip-label">Evaluation Presets:</span>
-                    <button class="chip active" data-task="Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Invoice Processing (Company X)</button>
-                    <button class="chip" data-task="Find the latest invoice from Acme Logistics, extract the balance due and payment deadline, enter it into our ERP, and verify.">Acme Logistics Latest Invoice</button>
-                    <button class="chip" data-task="Find the latest invoice for Globex Software Technologies, extract the amount and due date, register into accounting, and confirm ledger.">Globex Cloud Infrastructure Invoice</button>
-                    <button class="chip" data-task="Read the vendor profile for Apex Technologies from file, and register them into our internal ERP system.">Vendor Onboarding (Apex Tech)</button>
-                    <button class="chip" data-task="Read the vendor profile for Quantum Cloud Systems Inc from file, and register them into our internal ERP accounting system.">Vendor Onboarding (Quantum Cloud)</button>
-                    <button class="chip" data-task="Enter an invoice for Company X with amount '$13,446.00' and due date '2026-04-10', and verify the ledger.">Self-Healing Recovery Demo</button>
-                </div>
-            </div>
-        </section>
+    <main class="main">
+      <header class="topbar">
+        <span>Workspace <span class="slash">/</span> Task desk</span
+        ><span id="today" class="muted"></span>
+      </header>
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">OPERATIONS</p>
+          <h1>Task desk</h1>
+          <p class="subtitle">
+            Give Operon a goal. Follow the work. Check the result.
+          </p>
+        </div>
+        <button id="btn-reset-erp" class="button button-quiet">
+          Reset sandbox
+        </button>
+      </div>
+      <div id="notice" class="notice hidden" role="alert"></div>
 
-        <!-- Visual LangGraph State Machine Flow -->
-        <section class="graph-visualizer">
-            <div class="section-title-row">
-                <div class="title-with-pill">
-                    <h3>Cognitive Execution Pipeline</h3>
-                    <span class="sub-pill">LangGraph Loop</span>
-                </div>
-                <span id="loop-status" class="badge-status">IDLE</span>
-            </div>
-            <div class="pipeline">
-                <div class="pipeline-node" id="node-planner">
-                    <div class="node-icon">1</div>
-                    <div class="node-label">Planner</div>
-                    <div class="node-sub">Decomposition</div>
-                </div>
-                <div class="pipeline-arrow">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </div>
-                <div class="pipeline-node" id="node-executor">
-                    <div class="node-icon">2</div>
-                    <div class="node-label">Executor</div>
-                    <div class="node-sub">Tool Dispatch</div>
-                </div>
-                <div class="pipeline-arrow">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </div>
-                <div class="pipeline-node" id="node-observer">
-                    <div class="node-icon">3</div>
-                    <div class="node-label">Observer</div>
-                    <div class="node-sub">Memory Update</div>
-                </div>
-                <div class="pipeline-arrow">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </div>
-                <div class="pipeline-node" id="node-replanner">
-                    <div class="node-icon">4</div>
-                    <div class="node-label">Replanner</div>
-                    <div class="node-sub">Self-Healing</div>
-                </div>
-                <div class="pipeline-arrow">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </div>
-                <div class="pipeline-node" id="node-verifier">
-                    <div class="node-icon">5</div>
-                    <div class="node-label">Verifier</div>
-                    <div class="node-sub">Ledger Audit</div>
-                </div>
-                <div class="pipeline-arrow">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </div>
-                <div class="pipeline-node" id="node-summarizer">
-                    <div class="node-icon">6</div>
-                    <div class="node-label">Summarizer</div>
-                    <div class="node-sub">Evidence Packet</div>
-                </div>
-            </div>
-        </section>
+      <section class="composer" aria-labelledby="composer-title">
+        <div class="composer-top">
+          <h2 id="composer-title">What needs doing?</h2>
+          <span class="scope-note">Invoices · Vendor onboarding</span>
+        </div>
+        <label for="task-input" class="sr-only">Describe your task</label>
+        <textarea
+          id="task-input"
+          rows="3"
+          maxlength="4000"
+          placeholder="Find the latest invoice from Company X and enter it into the ERP."
+        >
+Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</textarea>
+        <div class="composer-bottom">
+          <label class="example-select"
+            ><span>Try an example</span
+            ><select id="example-select" aria-label="Choose an example task">
+              <option value="">Choose a task…</option>
+              <option value="company">Company X · latest invoice</option>
+              <option value="acme">Acme · latest invoice</option>
+              <option value="globex">Globex · latest invoice</option>
+              <option value="omni">OmniCorp · approval required</option>
+              <option value="apex">Apex · vendor onboarding</option>
+              <option value="quantum">Quantum · vendor onboarding</option>
+            </select></label
+          >
+          <div class="composer-actions">
+            <button id="btn-preview" class="button button-secondary">
+              Preview changes</button
+            ><button id="btn-run" class="button button-primary">
+              Run task <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </div>
+        <p class="composer-footnote">
+          Preview runs in a separate ledger copy. Entries over $25,000 pause for
+          approval when approval checks are enabled.
+        </p>
+      </section>
 
-        <!-- 3-Column Execution Workspace -->
-        <main class="workspace-grid">
-            <!-- Column 1: Action Plan & Timeline -->
-            <div class="workspace-col col-plan">
-                <div class="panel-header">
-                    <h4>Action Plan & Execution Log</h4>
-                    <span id="plan-count" class="counter">0 Steps</span>
-                </div>
-                <div class="panel-body" id="plan-container">
-                    <div class="empty-state">No active task. Click "Execute Autonomously" to generate a plan.</div>
-                </div>
+      <section
+        id="approval-panel"
+        class="approval-panel hidden"
+        aria-labelledby="approval-title"
+        aria-live="polite"
+      >
+        <div>
+          <p class="eyebrow">YOUR DECISION</p>
+          <h2 id="approval-title">This action needs approval</h2>
+          <p id="approval-prompt"></p>
+          <pre id="approval-args"></pre>
+        </div>
+        <div class="approval-actions">
+          <button id="btn-reject" class="button button-secondary">
+            Decline & stop</button
+          ><button id="btn-approve" class="button button-primary">
+            Approve this action
+          </button>
+        </div>
+      </section>
+
+      <section class="work-section" aria-labelledby="activity-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="activity-title">Current task</h2>
+            <span id="run-caption" class="muted"
+              >Your next task will appear here.</span
+            >
+          </div>
+          <span
+            id="run-status"
+            class="status-label"
+            role="status"
+            aria-live="polite"
+            >Ready</span
+          >
+        </div>
+        <div id="preview-note" class="preview-note hidden">
+          PREVIEW · Results below belong to a separate ledger copy. The company
+          ledger is unchanged.
+        </div>
+        <div class="work-grid">
+          <section class="activity-panel">
+            <div class="panel-heading">
+              <h3>Plan & activity</h3>
+              <span id="plan-count" class="muted">0 steps</span>
             </div>
+            <ol id="plan-container" class="plan-list">
+              <li class="empty-state">
+                <span class="empty-mark" aria-hidden="true">↳</span
+                ><strong>Ready when you are.</strong>
+                <p>
+                  The plan, actions, and any recovery attempts appear here as
+                  they happen.
+                </p>
+              </li>
+            </ol>
+            <div
+              id="recovery-note"
+              class="recovery-note hidden"
+              aria-live="polite"
+            ></div>
+          </section>
+          <aside class="detail-panel">
+            <section class="detail-section">
+              <p class="eyebrow">OUTCOME CHECK</p>
+              <div class="verification-heading">
+                <span id="verification-symbol" class="verification-symbol"
+                  >○</span
+                >
+                <h3 id="verif-title">Waiting for a task</h3>
+              </div>
+              <p id="verif-description" class="muted">
+                The result is checked against the company ledger and source
+                document.
+              </p>
+              <ul id="verif-checklist" class="check-list"></ul>
+              <p id="verif-evidence" class="verification-evidence"></p>
+            </section>
+            <section class="detail-section">
+              <div class="panel-heading">
+                <h3>Collected facts</h3>
+                <span id="fact-count" class="muted">0</span>
+              </div>
+              <dl id="entities-list" class="facts">
+                <p class="muted">Details appear as source files are read.</p>
+              </dl>
+            </section>
+            <section class="detail-section">
+              <h3>Source documents</h3>
+              <ul id="source-list" class="source-list">
+                <li class="muted">No documents read yet.</li>
+              </ul>
+            </section>
+          </aside>
+        </div>
+      </section>
 
-            <!-- Column 2: Working Memory (Scratchpad) -->
-            <div class="workspace-col col-memory">
-                <div class="panel-header">
-                    <h4>Context Working Memory</h4>
-                    <span class="counter">Live Scratchpad</span>
-                </div>
-                <div class="panel-body" id="memory-container">
-                    <div class="memory-card">
-                        <span class="memory-label">Discovered Entities</span>
-                        <div id="entities-list" class="entities-grid">
-                            <span class="empty-text">No entities extracted yet.</span>
-                        </div>
-                    </div>
-                    <div class="memory-card">
-                        <span class="memory-label">Step Results Cache</span>
-                        <div id="step-results-list" class="code-box">{}</div>
-                    </div>
-                </div>
-            </div>
+      <section
+        id="evidence-banner"
+        class="report-panel hidden"
+        aria-labelledby="report-title"
+      >
+        <div class="report-heading">
+          <div>
+            <p class="eyebrow">RUN REPORT</p>
+            <h2 id="report-title">Outcome verified</h2>
+          </div>
+          <a
+            id="download-evidence"
+            class="button button-secondary"
+            href="#"
+            download
+            >Download evidence <span aria-hidden="true">↓</span></a
+          >
+        </div>
+        <p id="evidence-summary-text" class="report-summary"></p>
+        <div class="report-stats">
+          <span><strong id="stat-actions">0</strong> actions</span
+          ><span><strong id="stat-time">0s</strong> elapsed</span
+          ><span><strong id="stat-diff">0</strong> new records</span
+          ><span id="policy-summary"></span>
+        </div>
+        <details class="report-details">
+          <summary>
+            Proposed / recorded ledger changes & evidence fingerprint
+          </summary>
+          <pre id="state-diff"></pre>
+          <p id="evidence-digest" class="digest"></p>
+        </details>
+      </section>
 
-            <!-- Column 3: Independent Verification & ERP State -->
-            <div class="workspace-col col-verification">
-                <div class="panel-header">
-                    <h4>Independent Verification & ERP</h4>
-                    <span id="verif-badge" class="badge-status">AWAITING</span>
-                </div>
-                <div class="panel-body">
-                    <!-- Verification Box -->
-                    <div class="verif-box" id="verif-box">
-                        <div class="verif-score-row">
-                            <div class="verif-meter">
-                                <span class="score-num" id="verif-score">0%</span>
-                                <span class="score-label">Confidence</span>
-                            </div>
-                            <div class="verif-status-text">
-                                <strong id="verif-status-title">Pending Verification</strong>
-                                <p id="verif-status-desc">Auditor inspects ledger state after task execution.</p>
-                            </div>
-                        </div>
-                        <ul id="verif-checklist" class="checklist"></ul>
-                        <div id="verif-evidence" class="evidence-tag"></div>
-                    </div>
-
-                    <!-- Live ERP State Snapshot -->
-                    <div class="erp-snapshot">
-                        <div class="erp-header">
-                            <h5>ERP Ledger Invoices</h5>
-                            <button id="btn-refresh-erp" class="btn-xs">Refresh</button>
-                        </div>
-                        <div class="table-wrap">
-                            <table class="erp-table">
-                                <thead>
-                                    <tr>
-                                        <th>Invoice #</th>
-                                        <th>Vendor</th>
-                                        <th>Amount</th>
-                                        <th>Due Date</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="erp-table-body">
-                                    <tr><td colspan="5" class="center-text">Loading ERP records...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- Final Evidence Packet Banner -->
-        <section id="evidence-banner" class="evidence-banner hidden">
-            <div class="evidence-header">
-                <div class="evidence-title">
-                    <span class="evidence-icon">&check;</span>
-                    <div>
-                        <h4>TASK COMPLETED & AUDITED</h4>
-                        <p id="evidence-summary-text"></p>
-                    </div>
-                </div>
-                <div class="evidence-stats">
-                    <div class="stat"><span class="stat-num" id="stat-actions">0</span><span class="stat-lbl">Actions</span></div>
-                    <div class="stat"><span class="stat-num" id="stat-time">0.0s</span><span class="stat-lbl">Duration</span></div>
-                    <div class="stat"><span class="stat-num" id="stat-diff">0</span><span class="stat-lbl">New Records</span></div>
-                </div>
-            </div>
-        </section>
-    </div>
-
+      <section class="ledger-section" aria-labelledby="ledger-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="ledger-title">Company ledger</h2>
+            <span class="muted"
+              >The current simulated ERP, shared across tasks in this server
+              session.</span
+            >
+          </div>
+          <button id="btn-refresh-erp" class="text-button">Refresh ↻</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Vendor</th>
+                <th class="amount">Amount (USD)</th>
+                <th>Due date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="erp-table-body">
+              <tr>
+                <td colspan="5">Loading ledger…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <details class="vendor-directory">
+          <summary id="vendor-count">Vendor directory</summary>
+          <div id="vendor-list" class="vendor-list"></div>
+        </details>
+      </section>
+      <footer class="page-footer">
+        <span>Operon · Autonomous task worker prototype</span
+        ><span id="model-name">Loading planner…</span>
+      </footer>
+    </main>
     <script src="/static/app.js"></script>
-</body>
+  </body>
 </html>

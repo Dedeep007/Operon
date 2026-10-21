@@ -29,6 +29,9 @@ def observer_node(state: OperonState) -> Dict[str, Any]:
             step_id=current_step.step_id
         )
         current_step.status = "completed"
+        for error in errors:
+            if error.step_id == current_step.step_id:
+                error.resolved = True
         
         # Advance to next step
         next_idx = idx + 1
@@ -39,6 +42,7 @@ def observer_node(state: OperonState) -> Dict[str, Any]:
             
         return {
             "plan": plan,
+            "errors": errors,
             "scratchpad": scratchpad.to_dict(),
             "current_step_index": next_idx,
             "status": next_status

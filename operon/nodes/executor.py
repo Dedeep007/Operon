@@ -8,7 +8,14 @@ from typing import Dict, Any
 from operon.state import OperonState, ActionRecord
 from operon.tools.registry import registry
 from operon.memory.scratchpad import Scratchpad
-from operon.safety.approval import safety_controller
+from operon.safety.approval import safety_controller, action_fingerprint
+from operon.tools.registry import ToolExecutionResult
+
+PREVIEW_TOOLS = {
+    "search_files", "read_document", "extract_invoice_data", "find_latest_invoice_file",
+    "read_vendor_profile", "erp_lookup_vendor", "erp_create_invoice", "erp_get_invoice",
+    "erp_list_invoices", "erp_register_vendor", "erp_verify_invoice_status",
+}
 
 def executor_node(state: OperonState) -> Dict[str, Any]:
     """Execute the current step in the plan."""
@@ -28,22 +35,32 @@ def executor_node(state: OperonState) -> Dict[str, Any]:
     resolved_args = scratchpad.interpolate_args(current_step.tool_args)
     current_step.tool_args = resolved_args
     
-    # Safety Check: Does this action require human approval?
-    # (If human feedback was already received approving it, proceed)
-    if not state.get("human_feedback"):
-        assessment = safety_controller.evaluate_step(current_step.tool_name, resolved_args)
-        if assessment.requires_approval:
+    # Approval applies only to this resolved action fingerprint.
+    fingerprint = action_fingerprint(current_step.step_id, current_step.tool_name, resolved_args)
+    assessment = safety_controller.evaluate_step(current_step.tool_name, resolved_args)
+    policy_checks = list(state.get("policy_checks", []))
+    if assessment.requires_approval:
+        check = {"step_id": current_step.step_id, "tool_name": current_step.tool_name, **assessment.model_dump()}
+        if check not in policy_checks:
+            policy_checks.append(check)
+        if state.get("mode") != "preview" and state.get("approved_action") != fingerprint:
             return {
+                "plan": plan,
+                "policy_checks": policy_checks,
                 "requires_approval": True,
                 "approval_prompt": assessment.approval_prompt,
                 "status": "waiting_approval"
             }
             
-    # Reset human feedback after use
-    human_fb = state.get("human_feedback")
-    
     # Execute Tool
-    exec_result = registry.execute(current_step.tool_name, **resolved_args)
+    if state.get("mode") == "preview" and current_step.tool_name not in PREVIEW_TOOLS:
+        exec_result = ToolExecutionResult(success=False, tool_name=current_step.tool_name, args=resolved_args,
+            error="PreviewBlockedError: This tool cannot run in the isolated ERP preview.", error_type="PreviewBlockedError")
+    elif "{{" in str(resolved_args):
+        exec_result = ToolExecutionResult(success=False, tool_name=current_step.tool_name, args=resolved_args,
+            error="MissingContextError: Required information could not be resolved from earlier steps.", error_type="MissingContextError")
+    else:
+        exec_result = registry.execute(current_step.tool_name, **resolved_args)
     
     # Create action audit record
     record = ActionRecord(
@@ -66,5 +83,8 @@ def executor_node(state: OperonState) -> Dict[str, Any]:
         "action_history": action_history,
         "requires_approval": False,
         "human_feedback": None,
+        "approved_action": None,
+        "policy_checks": policy_checks,
+        "status": "executing",
         "last_execution_result": exec_result.model_dump()
     }

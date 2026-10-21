@@ -3,6 +3,8 @@
 import os
 import re
 import json
+import hashlib
+from datetime import date
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from operon.tools.registry import registry
@@ -37,8 +39,7 @@ def read_document(file_path: Optional[str] = None, path: Optional[str] = None, *
     """Read document text content and return structured content object."""
     target_path = file_path or path or kwargs.get("filename")
     if not target_path or "{{" in str(target_path):
-        # Fallback to latest sample file
-        target_path = str(settings.sample_data_dir / "invoices" / "company_x_inv_2026_03_latest.txt")
+        raise ValueError("MissingContextError: A resolved document path is required.")
         
     p = Path(target_path)
     if not p.exists():
@@ -68,7 +69,8 @@ def read_document(file_path: Optional[str] = None, path: Optional[str] = None, *
     return {
         "content": text,
         "text": text,
-        "file_path": str(p.resolve())
+        "file_path": str(p.resolve()),
+        "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
     }
 
 @registry.register(
@@ -79,7 +81,7 @@ def extract_invoice_data(content: Optional[Any] = None, text: Optional[Any] = No
     """Extract key invoice fields from raw document text or JSON structure."""
     raw = content if content is not None else (text if text is not None else kwargs.get("data"))
     if isinstance(raw, dict):
-        raw = raw.get("content") or raw.get("text") or str(raw)
+        raw = raw.get("content") or raw.get("text") or json.dumps(raw)
     content_str = str(raw or "")
     data = {}
     
@@ -102,12 +104,12 @@ def extract_invoice_data(content: Optional[Any] = None, text: Optional[Any] = No
 
     # Regex extraction from plain text
     # 1. Invoice Number
-    inv_match = re.search(r"Invoice\s*(?:Number|#)?\s*[:#]?\s*([A-Za-z0-9\-]+)", content_str, re.IGNORECASE)
+    inv_match = re.search(r"\bInvoice\s*(?:Number|No\.?|#)?\s*[:#]?\s*([A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)", content_str, re.IGNORECASE)
     if inv_match:
         data["invoice_number"] = inv_match.group(1).strip()
 
     # 2. Vendor / Issuer
-    vendor_match = re.search(r"(?:Vendor|Issuer|From)\s*[:#]?\s*([^\n\r]+)", content_str, re.IGNORECASE)
+    vendor_match = re.search(r"(?:Vendor\s*/\s*Issuer|Vendor|Issuer|From)\s*:\s*([^\n\r]+)", content_str, re.IGNORECASE)
     if vendor_match:
         data["vendor"] = vendor_match.group(1).strip()
 
@@ -129,9 +131,9 @@ def extract_invoice_data(content: Optional[Any] = None, text: Optional[Any] = No
     # 5. Amount Due
     # Look for Total Due / Balance Due / Total Amount / Total (with word boundaries to avoid Subtotal)
     amt_match = re.search(
-        r"(?:TOTAL\s+(?:BALANCE\s+)?DUE|TOTAL\s+AMOUNT(?:\s+DUE)?|BALANCE\s+DUE|\bTOTAL\b)\s*[:#]?\s*\$?\s*([\d,]+\.?\d*)",
+        r"^\s*(?:TOTAL\s+(?:BALANCE\s+)?DUE|TOTAL\s+AMOUNT(?:\s+DUE)?|BALANCE\s+DUE|TOTAL)\s*[:#]?\s*\$?\s*([\d,]+\.?\d*)",
         content_str,
-        re.IGNORECASE
+        re.IGNORECASE | re.MULTILINE
     )
     if amt_match:
         raw_amt = amt_match.group(1).replace(",", "")
@@ -159,53 +161,44 @@ def find_latest_invoice_file(
     if not dir_path.exists():
         raise FileNotFoundError(f"Invoices directory '{dir_path}' does not exist.")
         
-    clean_company = target_company.lower().replace(" ", "_").replace("solutions", "").strip("_")
-    tokens = [t for t in clean_company.split("_") if len(t) > 2 and t not in ("inc", "llc", "corp", "ltd")]
-    if not tokens:
-        tokens = [clean_company]
-        
-    filename_candidates = []
-    content_candidates = []
-    for f in dir_path.iterdir():
-        if f.is_file():
-            filename_lower = f.name.lower()
-            if clean_company in filename_lower or any(t in filename_lower for t in tokens):
-                filename_candidates.append(f)
-            else:
-                try:
-                    content = f.read_text(encoding="utf-8", errors="ignore")
-                    parsed = extract_invoice_data(content)
-                    vendor_in_doc = str(parsed.get("vendor", "")).lower()
-                    if clean_company in vendor_in_doc or any(t in vendor_in_doc for t in tokens):
-                        content_candidates.append(f)
-                except Exception:
-                    pass
-
-    candidate_files = filename_candidates if filename_candidates else content_candidates
-
-    if not candidate_files:
-        raise FileNotFoundError(f"No invoice files found for company '{target_company}'.")
-
+    from operon.environment.context import get_erp
+    vendor = get_erp().find_vendor(target_company)
+    identity = vendor["name"] if vendor else target_company
+    def normalized(name):
+        tokens = re.findall(r"[a-z0-9]+", str(name).casefold())
+        return "".join(t for t in tokens if t not in {"solutions", "inc", "llc", "corp", "ltd", "technologies", "industries"})
     invoices_info = []
-    for f in candidate_files:
+    for f in sorted(dir_path.iterdir()):
+        if not f.is_file() or f.suffix.lower() not in {".txt", ".json", ".pdf"}:
+            continue
         try:
-            content = f.read_text(encoding="utf-8", errors="ignore")
+            document = read_document(file_path=str(f))
+            content = document["content"]
             parsed = extract_invoice_data(content)
-            doc_date = parsed.get("invoice_date") or parsed.get("due_date") or ""
+            if normalized(parsed.get("vendor", "")) != normalized(identity):
+                continue
+            doc_date = parsed.get("invoice_date") or ""
             fn_date = re.search(r"\d{4}[-_]\d{2}(?:[-_]\d{2})?", f.name)
             if not doc_date and fn_date:
                 doc_date = fn_date.group(0).replace("_", "-")
+                if len(doc_date) == 7:
+                    doc_date += "-01"
+            # Sort real calendar dates; an invalid string must not outrank a valid source.
+            doc_date = date.fromisoformat(doc_date).isoformat()
             invoices_info.append({
                 "file_path": str(f.resolve()),
                 "filename": f.name,
                 "content": content,
                 "parsed_data": parsed,
-                "date": doc_date
+                "date": doc_date,
+                "sha256": document["sha256"],
             })
-        except Exception:
-            pass
+        except (OSError, ValueError, RuntimeError):
+            continue
 
     # Sort chronologically by date descending
+    if not invoices_info:
+        raise FileNotFoundError(f"No readable, dated source invoices found for company '{target_company}'.")
     invoices_info.sort(key=lambda x: str(x.get("date", "")), reverse=True)
     latest = invoices_info[0]
     
@@ -214,9 +207,24 @@ def find_latest_invoice_file(
         "latest_file_path": latest["file_path"],
         "content": latest["content"],
         "filename": latest["filename"],
+        "sha256": latest["sha256"],
         "invoice_data": latest["parsed_data"],
         "all_candidate_count": len(invoices_info)
     }
+
+
+@registry.register(name="read_vendor_profile", description="Find and read a local JSON vendor onboarding profile by company name.")
+def read_vendor_profile(company_name: str) -> Dict[str, Any]:
+    for path in sorted((settings.sample_data_dir / "vendors").glob("*.json")):
+        profile = json.loads(path.read_text(encoding="utf-8"))
+        name = profile.get("company_name") or profile.get("name", "")
+        if company_name.strip() and company_name.casefold() in name.casefold():
+            return {
+                "vendor_data": {"name": name, "tax_id": profile.get("tax_id"),
+                    "payment_terms": profile.get("payment_terms", "Net 30"), "contact_email": profile.get("contact_email", "")},
+                "file_path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+    raise FileNotFoundError(f"No vendor profile found for '{company_name}'.")
 
 @registry.register(
     name="write_file",

@@ -37,5 +37,6 @@ class OperonSettings(BaseModel):
     
     # Environment
     mock_llm_if_no_key: bool = True
+    environment: str = Field(default_factory=lambda: os.getenv("OPERON_ENVIRONMENT", "auto"))
 
 settings = OperonSettings()

@@ -49,3 +49,6 @@ htmlcov/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Local run history and downloaded evidence
+storage/

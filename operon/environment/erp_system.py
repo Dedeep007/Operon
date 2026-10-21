@@ -1,11 +1,12 @@
 """Simulated Enterprise Resource Planning (ERP) & Accounting System.
 
-Provides an in-memory, ACID-like transactional datastore with realistic business
-validation rules, error conditions, audit logging, and state inspection for independent verification.
+Provides an in-memory ledger with business validation, audit records, and state
+inspection. The dashboard serializes tasks; this is not a transactional database.
 """
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from copy import deepcopy
 import json
 import re
 
@@ -29,6 +30,7 @@ class ERPSystem:
     
     def _seed_initial_data(self):
         """Seed pre-existing vendors and past records."""
+        self.audit_log = []
         self.vendors = {
             "VND-001": {
                 "vendor_id": "VND-001",
@@ -107,34 +109,36 @@ class ERPSystem:
         }
 
     def _log_audit(self, action: str, details: Dict[str, Any]):
-        """Record action in the immutable audit log."""
+        """Capture an independent copy of action details in the local audit log."""
         self.audit_log.append({
             "timestamp": datetime.now().isoformat(),
             "action": action,
-            "details": details
+            "details": deepcopy(details)
         })
 
     def find_vendor(self, query: str) -> Optional[Dict[str, Any]]:
         """Look up a vendor by ID, exact name, or alias."""
         clean_q = query.strip().lower()
+        if not clean_q:
+            return None
         
         # Check by ID
         for vid, v in self.vendors.items():
             if vid.lower() == clean_q:
                 self._log_audit("FIND_VENDOR_SUCCESS", {"query": query, "vendor_id": vid})
-                return dict(v)
+                return deepcopy(v)
                 
         # Check by Name or Aliases
         for vid, v in self.vendors.items():
             if v["name"].lower() == clean_q or any(alias.lower() == clean_q for alias in v.get("alias", [])):
                 self._log_audit("FIND_VENDOR_SUCCESS", {"query": query, "vendor_id": vid})
-                return dict(v)
+                return deepcopy(v)
                 
         # Substring search
         for vid, v in self.vendors.items():
             if clean_q in v["name"].lower() or any(clean_q in alias.lower() for alias in v.get("alias", [])):
                 self._log_audit("FIND_VENDOR_SUCCESS", {"query": query, "vendor_id": vid})
-                return dict(v)
+                return deepcopy(v)
                 
         self._log_audit("FIND_VENDOR_NOT_FOUND", {"query": query})
         return None
@@ -143,6 +147,15 @@ class ERPSystem:
         """Register a new vendor in the system."""
         if not name or not tax_id:
             raise ERPValidationError("Vendor name and tax_id are required.")
+        name, tax_id = name.strip(), tax_id.strip()
+        if not name or not tax_id:
+            raise ERPValidationError("Vendor name and tax_id are required.")
+        for vendor in self.vendors.values():
+            if vendor["tax_id"].casefold() == tax_id.casefold() or vendor["name"].casefold() == name.casefold():
+                fields = {"name": name, "tax_id": tax_id, "payment_terms": payment_terms, "contact_email": contact_email.strip()}
+                if all(str(vendor[k]).casefold() == str(v).casefold() for k, v in fields.items()):
+                    return deepcopy(vendor)
+                raise ERPValidationError("DuplicateVendorError: A vendor with this name or tax ID has conflicting details.")
             
         new_id = f"VND-{len(self.vendors) + 1:03d}"
         vendor_data = {
@@ -180,14 +193,18 @@ class ERPSystem:
             
         try:
             val_amount = float(amount)
-            if val_amount <= 0:
-                raise ValueError("Amount must be greater than zero.")
+            from operon.validation import parse_amount
+            val_amount = parse_amount(amount)
         except Exception:
             raise ERPValidationError(f"InvalidAmountError: Amount '{amount}' must be a positive number.")
             
         # Validate date format YYYY-MM-DD
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(due_date)):
             raise ERPValidationError(f"InvalidDateFormatError: Due date '{due_date}' must follow ISO format YYYY-MM-DD.")
+        try:
+            datetime.strptime(due_date, "%Y-%m-%d")
+        except ValueError:
+            raise ERPValidationError(f"InvalidDateFormatError: Due date '{due_date}' is not a calendar date.")
             
         vendor = self.vendors[vendor_id]
         new_record = {
@@ -219,7 +236,7 @@ class ERPSystem:
 
     def list_invoices(self, vendor_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all invoices or filter by vendor."""
-        results = list(self.invoices.values())
+        results = deepcopy(list(self.invoices.values()))
         if vendor_id:
             results = [inv for inv in results if inv["vendor_id"] == vendor_id]
         return results
@@ -229,22 +246,45 @@ class ERPSystem:
         return {
             "vendor_count": len(self.vendors),
             "invoice_count": len(self.invoices),
-            "invoices": {k: dict(v) for k, v in self.invoices.items()},
-            "vendors": {k: dict(v) for k, v in self.vendors.items()}
+            "invoices": deepcopy(self.invoices),
+            "vendors": deepcopy(self.vendors)
         }
 
-    def compute_state_diff(self) -> Dict[str, Any]:
+    def compute_state_diff(self, baseline=None, audit_start: int = 0) -> Dict[str, Any]:
         """Compute differences between initial state and current state."""
         current = self.get_state_snapshot()
-        initial_inv = self._initial_snapshot.get("invoices", {})
+        baseline = baseline if baseline is not None else self._initial_snapshot
+        initial_inv = baseline.get("invoices", {})
         current_inv = current.get("invoices", {})
         
         new_invoices = [inv for k, inv in current_inv.items() if k not in initial_inv]
+        new_vendors = [v for k, v in current["vendors"].items() if k not in baseline.get("vendors", {})]
         return {
             "new_invoices_created": new_invoices,
             "total_new_invoices": len(new_invoices),
-            "audit_events_count": len(self.audit_log)
+            "new_vendors_created": new_vendors,
+            "total_new_vendors": len(new_vendors),
+            "vendor_balance_changes": [
+                {"vendor_id": k, "before": baseline["vendors"][k]["balance_owed"], "after": v["balance_owed"]}
+                for k, v in current["vendors"].items()
+                if k in baseline.get("vendors", {}) and v["balance_owed"] != baseline["vendors"][k]["balance_owed"]
+            ],
+            "audit_events_count": len(self.audit_log) - audit_start
         }
+
+    def clone(self):
+        """Create an independent sandbox from the current ledger."""
+        sandbox = ERPSystem()
+        snapshot = self.get_state_snapshot()
+        sandbox.invoices = snapshot["invoices"]
+        sandbox.vendors = snapshot["vendors"]
+        sandbox.audit_log = []
+        sandbox._initial_snapshot = sandbox.get_state_snapshot()
+        return sandbox
+
+    def reset(self):
+        self._seed_initial_data()
+        self._initial_snapshot = self.get_state_snapshot()
 
 # Global singleton simulated ERP instance
 default_erp = ERPSystem()

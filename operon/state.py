@@ -53,6 +53,14 @@ class EvidencePacket(BaseModel):
     created_records: List[Dict[str, Any]] = Field(default_factory=list)
     state_diffs: Dict[str, Any] = Field(default_factory=dict)
     action_log: List[ActionRecord] = Field(default_factory=list)
+    run_id: str = ""
+    mode: Literal["execute", "preview"] = "execute"
+    plan: List[PlanStep] = Field(default_factory=list)
+    source_documents: List[Dict[str, Any]] = Field(default_factory=list)
+    policy_checks: List[Dict[str, Any]] = Field(default_factory=list)
+    errors: List[ErrorRecord] = Field(default_factory=list)
+    evidence_sha256: str = ""
+    planner_backend: str = "offline"
 
 class OperonState(TypedDict):
     """Central state passed across all LangGraph nodes."""
@@ -68,6 +76,14 @@ class OperonState(TypedDict):
     requires_approval: bool
     approval_prompt: Optional[str]
     human_feedback: Optional[str]
-    status: Literal["planning", "executing", "waiting_approval", "replanning", "verifying", "completed", "failed"]
+    status: Literal["planning", "executing", "waiting_approval", "replanning", "verifying", "completed", "partially_completed", "failed"]
     start_time: float
     last_execution_result: Optional[Dict[str, Any]]
+    run_id: str
+    mode: Literal["execute", "preview"]
+    baseline_snapshot: Dict[str, Any]
+    baseline_audit_count: int
+    approved_action: Optional[str]
+    approval_rejected: bool
+    policy_checks: List[Dict[str, Any]]
+    planner_backend: str

@@ -19,15 +19,10 @@ def api_request(method: str, url: str, headers: Optional[Dict[str, str]] = None,
             json=json_body,
             timeout=10
         )
+        response.raise_for_status()
         return {
             "status_code": response.status_code,
             "response": response.json() if "application/json" in response.headers.get("content-type", "") else response.text
         }
     except Exception as e:
-        # Fallback simulated response if endpoint is unreachable or mock url
-        if "internal" in url or "localhost" in url:
-            return {
-                "status_code": 200,
-                "response": {"mock": True, "url": url, "method": clean_method, "received": json_body}
-            }
         raise RuntimeError(f"API request failed: {e}")

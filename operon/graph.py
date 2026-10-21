@@ -4,10 +4,12 @@ Orchestrates the cognitive nodes into an autonomous, self-healing execution loop
 with independent verification and human-in-the-loop safety checkpoints.
 """
 
-import time
-from typing import Literal, Dict, Any, Optional
+from typing import Literal, Dict, Any
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.types import interrupt
+from operon.safety.approval import action_fingerprint
 
 from operon.state import OperonState
 from operon.nodes.planner import planner_node
@@ -42,28 +44,34 @@ def route_after_replanner(state: OperonState) -> Literal["executor", "human_gate
 
 def route_after_verifier(state: OperonState) -> Literal["summarizer", "replanner"]:
     """Route after verification check."""
-    status = state.get("status")
-    if status == "completed":
-        return "summarizer"
-    # If not verified and still retries available
     return "summarizer"
 
 def human_gate_node(state: OperonState) -> Dict[str, Any]:
     """Human-in-the-loop approval checkpoint node."""
-    # In interactive/CLI mode, this can read input or allow auto-approval if configured
-    prompt = state.get("approval_prompt", "Approval requested.")
-    print(f"\n[HUMAN-IN-THE-LOOP CHECKPOINT] {prompt}")
-    
-    feedback = state.get("human_feedback")
-    if not feedback:
-        # If in headless run, we auto-approve or take standard response
-        feedback = "approved"
-        
+    step = state["plan"][state["current_step_index"]]
+    fingerprint = action_fingerprint(step.step_id, step.tool_name, step.tool_args)
+    decision = interrupt({
+        "approval_id": fingerprint,
+        "prompt": state.get("approval_prompt", "Approval requested."),
+        "step_id": step.step_id,
+        "tool_name": step.tool_name,
+        "tool_args": step.tool_args,
+    })
+    plan = list(state["plan"])
+    if decision is not True:
+        for remaining in plan[state["current_step_index"]:]:
+            remaining.status = "skipped"
     return {
+        "plan": plan,
         "requires_approval": False,
-        "human_feedback": feedback,
-        "status": "executing"
+        "approved_action": fingerprint if decision is True else None,
+        "approval_rejected": decision is not True,
+        "status": "executing" if decision is True else "verifying"
     }
+
+
+def route_after_gate(state):
+    return "verifier" if state.get("approval_rejected") else "executor"
 
 def create_operon_graph():
     """Build and compile the LangGraph state machine."""
@@ -80,7 +88,7 @@ def create_operon_graph():
     
     # 2. Add Edges & Conditional Routing
     workflow.add_edge(START, "planner")
-    workflow.add_edge("planner", "executor")
+    workflow.add_conditional_edges("planner", lambda state: "executor" if state.get("plan") else "verifier")
     
     workflow.add_conditional_edges(
         "executor",
@@ -91,7 +99,7 @@ def create_operon_graph():
         }
     )
     
-    workflow.add_edge("human_gate", "executor")
+    workflow.add_conditional_edges("human_gate", route_after_gate)
     
     workflow.add_conditional_edges(
         "observer",
@@ -124,7 +132,10 @@ def create_operon_graph():
     
     workflow.add_edge("summarizer", END)
     
-    checkpointer = MemorySaver()
+    serializer = JsonPlusSerializer(allowed_msgpack_modules=[
+        ("operon.state", name) for name in ("PlanStep", "ActionRecord", "ErrorRecord", "VerificationResult", "EvidencePacket")
+    ])
+    checkpointer = MemorySaver(serde=serializer)
     return workflow.compile(checkpointer=checkpointer)
 
 # Default compiled graph

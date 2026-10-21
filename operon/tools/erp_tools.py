@@ -2,7 +2,9 @@
 
 from typing import Dict, Any, List, Optional
 from operon.tools.registry import registry
-from operon.environment.erp_system import default_erp, ERPValidationError, ERPNotFoundError
+from operon.environment.erp_system import ERPValidationError, ERPNotFoundError
+from operon.environment.context import get_erp
+from operon.validation import parse_amount
 
 @registry.register(
     name="erp_lookup_vendor",
@@ -16,8 +18,10 @@ def erp_lookup_vendor(
     vendor_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Find a vendor in the internal accounting system."""
-    target = query or company_name or vendor_name or name or vendor_id or "Company X"
-    vendor = default_erp.find_vendor(target)
+    target = query or company_name or vendor_name or name or vendor_id
+    if not target:
+        raise ERPValidationError("A vendor name or ID is required.")
+    vendor = get_erp().find_vendor(target)
     if not vendor:
         raise ERPNotFoundError(f"VendorNotFoundError: No vendor found matching '{target}'.")
     return vendor
@@ -35,22 +39,25 @@ def erp_create_invoice(
 ) -> Dict[str, Any]:
     """Create a new invoice entry in the ERP ledger."""
     inv_num = invoice_number or kwargs.get("id") or kwargs.get("invoice_num")
-    if not inv_num or str(inv_num).startswith("{{") or inv_num == "None":
-        import time
-        inv_num = f"INV-AUTO-{int(time.time()) % 100000}"
-    v_id = vendor_id or kwargs.get("vendor") or "VND-001"
-    raw_amount = amount if amount is not None else kwargs.get("total_amount", 0.0)
-    due = due_date or kwargs.get("due") or "2026-04-10"
+    if not inv_num or "{{" in str(inv_num):
+        raise ERPValidationError("MissingContextError: A source invoice number is required.")
+    v_id = vendor_id or kwargs.get("vendor")
+    raw_amount = amount if amount is not None else kwargs.get("total_amount")
+    due = due_date or kwargs.get("due")
+    if not v_id or not due:
+        raise ERPValidationError("MissingContextError: Vendor ID and due date are required.")
     
     # Auto-clean amount if passed as string e.g. "$13,446.00"
-    if isinstance(raw_amount, str):
-        import re
-        cleaned = re.sub(r"[^\d.]", "", raw_amount)
-        parsed_amount = float(cleaned) if cleaned else 0.0
-    else:
-        parsed_amount = float(raw_amount)
+    try:
+        parsed_amount = parse_amount(raw_amount)
+    except ValueError as exc:
+        raise ERPValidationError(f"InvalidAmountError: {exc}") from exc
 
-    return default_erp.create_invoice(
+    existing = get_erp().get_invoice(str(inv_num))
+    if existing and existing["vendor_id"] == str(v_id) and existing["amount"] == parsed_amount and existing["due_date"] == str(due):
+        return {**existing, "already_exists": True}
+
+    return get_erp().create_invoice(
         invoice_number=str(inv_num),
         vendor_id=str(v_id),
         amount=parsed_amount,
@@ -66,7 +73,7 @@ def erp_get_invoice(invoice_number: Optional[str] = None, invoice_num: Optional[
     target = invoice_number or invoice_num or kwargs.get("id")
     if not target:
         raise ERPValidationError("invoice_number is required.")
-    inv = default_erp.get_invoice(str(target))
+    inv = get_erp().get_invoice(str(target))
     if not inv:
         raise ERPNotFoundError(f"InvoiceNotFoundError: Invoice '{target}' does not exist in the ERP.")
     return inv
@@ -77,7 +84,7 @@ def erp_get_invoice(invoice_number: Optional[str] = None, invoice_num: Optional[
 )
 def erp_list_invoices(vendor_id: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
     """List invoices from ERP."""
-    return default_erp.list_invoices(vendor_id=vendor_id)
+    return get_erp().list_invoices(vendor_id=vendor_id)
 
 @registry.register(
     name="erp_register_vendor",
@@ -93,8 +100,8 @@ def erp_register_vendor(
 ) -> Dict[str, Any]:
     """Register a new vendor."""
     v_name = name or company_name or kwargs.get("vendor_name", "")
-    t_id = tax_id or kwargs.get("tax_identification_number", "TX-00000")
-    return default_erp.register_vendor(
+    t_id = tax_id or kwargs.get("tax_identification_number", "")
+    return get_erp().register_vendor(
         name=str(v_name),
         tax_id=str(t_id),
         payment_terms=payment_terms,
@@ -116,7 +123,7 @@ def erp_verify_invoice_status(
     if not target:
         return {"verified": False, "reason": "No invoice number provided for verification."}
         
-    inv = default_erp.get_invoice(str(target))
+    inv = get_erp().get_invoice(str(target))
     if not inv:
         return {
             "verified": False,
@@ -126,17 +133,12 @@ def erp_verify_invoice_status(
     mismatches = []
     if expected_amount is not None:
         try:
-            import re
-            if isinstance(expected_amount, str):
-                cleaned = re.sub(r"[^\d.]", "", expected_amount)
-                exp_f = float(cleaned) if cleaned else 0.0
-            else:
-                exp_f = float(expected_amount)
+            exp_f = parse_amount(expected_amount)
             actual_amt = float(inv.get("amount", 0.0))
-            if abs(actual_amt - exp_f) > 0.01:
+            if round(actual_amt, 2) != round(exp_f, 2):
                 mismatches.append(f"Amount mismatch: expected {exp_f}, found {actual_amt}")
-        except Exception:
-            pass
+        except (ValueError, TypeError):
+            mismatches.append("Expected amount is invalid; verification cannot pass.")
             
     if expected_due_date is not None:
         actual_due = inv.get("due_date", "")
@@ -157,4 +159,4 @@ def erp_verify_invoice_status(
 )
 def erp_delete_record(record_type: str, record_id: str) -> str:
     """Simulated destructive deletion action."""
-    return f"Record {record_type}:{record_id} successfully purged from database."
+    raise NotImplementedError("Record deletion is outside this prototype's supported workflows.")

@@ -1,36 +1,34 @@
-"""Demo: Self-Healing Error Recovery and Dynamic Replanning.
+"""A genuine validation failure followed by date normalization and verification."""
 
-Demonstrates:
-1. Detecting when an action fails (e.g. invalid date or string amount).
-2. Autonomous diagnosis of the failure reason.
-3. Parameter normalization and alternative retry strategy.
-4. Completing the task without requiring human intervention for trivial input glitches.
-"""
+import json
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from operon.config import settings
+from operon.llm import llm_provider
+from cli import run_task
 
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from operon.agent import OperonAgent
-from operon.environment.erp_system import default_erp
-from rich.console import Console
-from rich.panel import Panel
-
-console = Console()
 
 def run_recovery_demo():
-    console.print(Panel(
-        "[bold cyan]GOAL:[/bold cyan] Process invoice entry where source document has currency symbols and non-ISO date format.",
-        title="[bold yellow]Operon Reliability Demo: Self-Healing Recovery[/bold yellow]",
-        border_style="yellow"
-    ))
-    
-    agent = OperonAgent()
-    packet = agent.run("Enter invoice INV-X-2026-004 for Company X with amount '$13,446.00' and due date '2026-04-10', and verify the ledger.")
-    
-    console.print(f"\n[bold]Outcome:[/bold] [bold green]{packet.status.upper()}[/bold green]")
-    console.print(f"[bold]Summary:[/bold] {packet.summary}")
-    console.print(f"[bold]Verification Passed:[/bold] {packet.verification.is_verified}")
-    console.print(f"[bold]Evidence:[/bold] {packet.verification.evidence}")
+    previous_dir, previous_client = settings.sample_data_dir, llm_provider._client
+    try:
+        with TemporaryDirectory(prefix="operon-recovery-") as directory:
+            root = Path(directory)
+            (root / "invoices").mkdir()
+            (root / "invoices" / "company_x_recovery.json").write_text(json.dumps({
+                "invoice_number": "INV-RECOVERY-001", "vendor": "Company X Solutions",
+                "invoice_date": "2026-03-10", "due_date": "Due: 2026-04-10 end of business",
+                "amount": "$13,446.00", "currency": "USD",
+            }), encoding="utf-8")
+            settings.sample_data_dir, llm_provider._client = root, None
+            packet = run_task("Find the latest invoice from Company X, enter it into ERP and verify.")
+            assert packet.status == "completed"
+            assert any(error.recovery_strategy for error in packet.errors)
+            print("Recovery confirmed: an invalid date failed, was normalized, and passed source verification.")
+    finally:
+        settings.sample_data_dir, llm_provider._client = previous_dir, previous_client
+
 
 if __name__ == "__main__":
     run_recovery_demo()

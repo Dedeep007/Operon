@@ -1,8 +1,16 @@
 """Human-in-the-Loop and Safety Approvals for Operon."""
 
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 from operon.config import settings
+from operon.validation import parse_amount
+from operon.tools.registry import registry
+import hashlib
+import json
+
+
+def action_fingerprint(step_id, tool_name, args):
+    return hashlib.sha256(json.dumps([step_id, tool_name, args], sort_keys=True).encode()).hexdigest()
 
 class SafetyAssessment(BaseModel):
     """Result of evaluating a proposed action against safety boundaries."""
@@ -24,7 +32,8 @@ class SafetyController:
             return SafetyAssessment(requires_approval=False, risk_level="LOW")
 
         # 1. High risk tool check
-        if tool_name in self.high_risk_tools or "delete" in tool_name.lower():
+        definition = registry.get_definition(tool_name)
+        if tool_name in self.high_risk_tools or "delete" in tool_name.lower() or (definition and definition.requires_approval):
             return SafetyAssessment(
                 requires_approval=True,
                 risk_level="HIGH",
@@ -36,7 +45,7 @@ class SafetyController:
         amount = args.get("amount")
         if amount is not None:
             try:
-                val = float(amount)
+                val = parse_amount(amount)
                 if val > self.financial_approval_threshold:
                     return SafetyAssessment(
                         requires_approval=True,
