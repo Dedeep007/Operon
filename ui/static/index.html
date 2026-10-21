@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Operon — Autonomous AI Task Worker</title>
+    <title>Operon — Autonomous Enterprise AI Task Worker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -14,27 +14,33 @@
         <!-- Top Navigation Bar -->
         <header class="navbar">
             <div class="brand">
-                <div class="logo-orb"></div>
+                <div class="brand-badge">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                </div>
                 <div class="brand-text">
                     <h1>OPERON</h1>
-                    <span class="badge-tag">AUTONOMOUS TASK WORKER</span>
+                    <span class="badge-tag">AUTONOMOUS WORKER</span>
                 </div>
             </div>
             <div class="system-pills">
                 <div class="pill pill-model">
                     <span class="status-dot active"></span>
-                    <span class="pill-label">LLM:</span>
+                    <span class="pill-label">LLM</span>
                     <strong id="model-name">Qwen 3.8 27B (Groq LPU)</strong>
                 </div>
                 <div class="pill pill-graph">
                     <span class="status-dot active"></span>
-                    <span class="pill-label">Engine:</span>
+                    <span class="pill-label">Engine</span>
                     <strong>LangGraph StateGraph</strong>
                 </div>
                 <div class="pill pill-erp">
                     <span class="status-dot active"></span>
-                    <span class="pill-label">ERP:</span>
-                    <strong>Simulated ACID Ledger</strong>
+                    <span class="pill-label">ERP</span>
+                    <strong>Transactional Ledger</strong>
                 </div>
                 <button id="btn-reset-erp" class="btn-sm btn-ghost" title="Reset ERP to initial state">Reset ERP</button>
             </div>
@@ -44,22 +50,27 @@
         <section class="goal-hero">
             <div class="hero-header">
                 <h2>Autonomous Goal Specification</h2>
-                <p>Provide a high-level natural language request. Operon will decompose, plan, execute tools, observe, self-heal, verify, and return concrete evidence.</p>
+                <p>Submit any natural language enterprise request. Operon plans multi-step actions, invokes tools, navigates files & ERP, recovers from failures, and performs independent ground-truth verification.</p>
             </div>
             
             <div class="input-card">
                 <div class="input-wrapper">
                     <textarea id="task-input" rows="2" placeholder="e.g. Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</textarea>
                     <button id="btn-run" class="btn-primary">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
                         <span class="btn-text">Execute Autonomously</span>
-                        <div class="btn-glow"></div>
                     </button>
                 </div>
                 
                 <div class="preset-chips">
-                    <span class="chip-label">Quick Presets:</span>
-                    <button class="chip active" data-task="Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Invoice Processing (Problem Statement)</button>
-                    <button class="chip" data-task="Read the vendor profile for Apex Technologies from file, and register them into our internal ERP system.">Vendor Onboarding (Generalization)</button>
+                    <span class="chip-label">Evaluation Presets:</span>
+                    <button class="chip active" data-task="Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Invoice Processing (Company X)</button>
+                    <button class="chip" data-task="Find the latest invoice from Acme Logistics, extract the balance due and payment deadline, enter it into our ERP, and verify.">Acme Logistics Latest Invoice</button>
+                    <button class="chip" data-task="Find the latest invoice for Globex Software Technologies, extract the amount and due date, register into accounting, and confirm ledger.">Globex Cloud Infrastructure Invoice</button>
+                    <button class="chip" data-task="Read the vendor profile for Apex Technologies from file, and register them into our internal ERP system.">Vendor Onboarding (Apex Tech)</button>
+                    <button class="chip" data-task="Read the vendor profile for Quantum Cloud Systems Inc from file, and register them into our internal ERP accounting system.">Vendor Onboarding (Quantum Cloud)</button>
                     <button class="chip" data-task="Enter an invoice for Company X with amount '$13,446.00' and due date '2026-04-10', and verify the ledger.">Self-Healing Recovery Demo</button>
                 </div>
             </div>
@@ -68,40 +79,53 @@
         <!-- Visual LangGraph State Machine Flow -->
         <section class="graph-visualizer">
             <div class="section-title-row">
-                <h3>LangGraph Cognitive Execution Loop</h3>
+                <div class="title-with-pill">
+                    <h3>Cognitive Execution Pipeline</h3>
+                    <span class="sub-pill">LangGraph Loop</span>
+                </div>
                 <span id="loop-status" class="badge-status">IDLE</span>
             </div>
             <div class="pipeline">
                 <div class="pipeline-node" id="node-planner">
                     <div class="node-icon">1</div>
                     <div class="node-label">Planner</div>
-                    <div class="node-sub">Goal Decomposition</div>
+                    <div class="node-sub">Decomposition</div>
                 </div>
-                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-arrow">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
                 <div class="pipeline-node" id="node-executor">
                     <div class="node-icon">2</div>
                     <div class="node-label">Executor</div>
-                    <div class="node-sub">Tool Invocation</div>
+                    <div class="node-sub">Tool Dispatch</div>
                 </div>
-                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-arrow">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
                 <div class="pipeline-node" id="node-observer">
                     <div class="node-icon">3</div>
                     <div class="node-label">Observer</div>
-                    <div class="node-sub">Output & Memory</div>
+                    <div class="node-sub">Memory Update</div>
                 </div>
-                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-arrow">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
                 <div class="pipeline-node" id="node-replanner">
                     <div class="node-icon">4</div>
                     <div class="node-label">Replanner</div>
-                    <div class="node-sub">Self-Healing / Retry</div>
+                    <div class="node-sub">Self-Healing</div>
                 </div>
-                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-arrow">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
                 <div class="pipeline-node" id="node-verifier">
                     <div class="node-icon">5</div>
                     <div class="node-label">Verifier</div>
-                    <div class="node-sub">Ground-Truth Audit</div>
+                    <div class="node-sub">Ledger Audit</div>
                 </div>
-                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-arrow">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
                 <div class="pipeline-node" id="node-summarizer">
                     <div class="node-icon">6</div>
                     <div class="node-label">Summarizer</div>

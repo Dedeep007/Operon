@@ -92,7 +92,7 @@ def extract_invoice_data(content: Optional[Any] = None, text: Optional[Any] = No
                 return {
                     "invoice_number": parsed.get("invoice_number") or parsed.get("id"),
                     "vendor": parsed.get("issuer") or parsed.get("vendor"),
-                    "invoice_date": parsed.get("invoice_date") or parsed.get("date"),
+                    "invoice_date": parsed.get("invoice_date") or parsed.get("issue_date") or parsed.get("date"),
                     "due_date": parsed.get("due_date") or parsed.get("payment_due"),
                     "amount": parsed.get("total_amount") or parsed.get("amount") or parsed.get("subtotal"),
                     "currency": parsed.get("currency", "USD")
@@ -160,21 +160,28 @@ def find_latest_invoice_file(
         raise FileNotFoundError(f"Invoices directory '{dir_path}' does not exist.")
         
     clean_company = target_company.lower().replace(" ", "_").replace("solutions", "").strip("_")
-    candidate_files = []
-    
+    tokens = [t for t in clean_company.split("_") if len(t) > 2 and t not in ("inc", "llc", "corp", "ltd")]
+    if not tokens:
+        tokens = [clean_company]
+        
+    filename_candidates = []
+    content_candidates = []
     for f in dir_path.iterdir():
         if f.is_file():
-            # Check filename match or read content to check vendor
-            filename_match = clean_company in f.name.lower() or "company_x" in f.name.lower()
-            if filename_match:
-                candidate_files.append(f)
+            filename_lower = f.name.lower()
+            if clean_company in filename_lower or any(t in filename_lower for t in tokens):
+                filename_candidates.append(f)
             else:
                 try:
                     content = f.read_text(encoding="utf-8", errors="ignore")
-                    if target_company.lower() in content.lower():
-                        candidate_files.append(f)
+                    parsed = extract_invoice_data(content)
+                    vendor_in_doc = str(parsed.get("vendor", "")).lower()
+                    if clean_company in vendor_in_doc or any(t in vendor_in_doc for t in tokens):
+                        content_candidates.append(f)
                 except Exception:
                     pass
+
+    candidate_files = filename_candidates if filename_candidates else content_candidates
 
     if not candidate_files:
         raise FileNotFoundError(f"No invoice files found for company '{target_company}'.")
@@ -184,12 +191,16 @@ def find_latest_invoice_file(
         try:
             content = f.read_text(encoding="utf-8", errors="ignore")
             parsed = extract_invoice_data(content)
+            doc_date = parsed.get("invoice_date") or parsed.get("due_date") or ""
+            fn_date = re.search(r"\d{4}[-_]\d{2}(?:[-_]\d{2})?", f.name)
+            if not doc_date and fn_date:
+                doc_date = fn_date.group(0).replace("_", "-")
             invoices_info.append({
                 "file_path": str(f.resolve()),
                 "filename": f.name,
                 "content": content,
                 "parsed_data": parsed,
-                "date": parsed.get("invoice_date") or ""
+                "date": doc_date
             })
         except Exception:
             pass

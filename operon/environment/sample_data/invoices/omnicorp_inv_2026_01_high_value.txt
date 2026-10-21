@@ -1,0 +1,33 @@
+================================================================================
+                         OMNICORP INDUSTRIES
+                    CAPITAL ASSET INVOICE #INV-OMNI-2026-001
+================================================================================
+Vendor / Issuer : OmniCorp Industries
+Tax ID          : TX-77301-OMN
+Corporate AP    : enterprise-billing@omnicorp.example.com
+Phone           : +1 (212) 555-9000
+
+Purchasing Entity:
+Corporate Data Center Operations
+
+Invoice Details:
+Issue Date      : March 15, 2026 (2026-03-15)
+Due Date        : April 25, 2026 (2026-04-25)
+Payment Terms   : Net 45
+Classification  : High-Value Capital Expenditure
+
+Equipment Schedule:
+--------------------------------------------------------------------------------
+Item # | Hardware Specification                 | Qty   | Unit Cost | Total
+--------------------------------------------------------------------------------
+01     | Enterprise GPU Compute Rack (H100 Node)| 1     | $35,000   | $35,000.00
+02     | 400Gbps InfiniBand Quantum Switch      | 1     | $10,500   | $10,500.00
+03     | On-Site Rack Integration & Testing     | 1     | $3,000    | $3,000.00
+--------------------------------------------------------------------------------
+Subtotal                                                       : $48,500.00
+State Sales Tax (0.00% Enterprise Exempt)                      : $0.00
+TOTAL BALANCE DUE                                              : $48,500.00
+--------------------------------------------------------------------------------
+
+WARNING: Standard compliance requires supervisor sign-off for disbursements over $25,000.
+Remit wire to OmniCorp Treasury referencing INV-OMNI-2026-001.

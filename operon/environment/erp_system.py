@@ -53,16 +53,26 @@ class ERPSystem:
             "VND-003": {
                 "vendor_id": "VND-003",
                 "name": "Globex Software Technologies",
-                "alias": ["Globex", "Globex Corp"],
+                "alias": ["Globex", "Globex Corp", "Globex Software"],
                 "tax_id": "TX-55412-G",
                 "status": "Active",
                 "payment_terms": "Net 60",
                 "contact_email": "finance@globex.example.com",
+                "balance_owed": 3200.00
+            },
+            "VND-004": {
+                "vendor_id": "VND-004",
+                "name": "OmniCorp Industries",
+                "alias": ["OmniCorp", "Omni Corp"],
+                "tax_id": "TX-77301-OMN",
+                "status": "Active",
+                "payment_terms": "Net 45",
+                "contact_email": "enterprise-billing@omnicorp.example.com",
                 "balance_owed": 0.0
             }
         }
         
-        # Pre-seed one older invoice for Company X to test "latest" logic
+        # Pre-seed realistic past records for multiple vendors
         self.invoices = {
             "INV-X-2026-001": {
                 "invoice_number": "INV-X-2026-001",
@@ -72,6 +82,26 @@ class ERPSystem:
                 "due_date": "2026-02-15",
                 "status": "PAID",
                 "created_at": "2026-01-16T10:00:00",
+                "source": "manual_entry"
+            },
+            "INV-ACM-2026-001": {
+                "invoice_number": "INV-ACM-2026-001",
+                "vendor_id": "VND-002",
+                "vendor_name": "Acme Logistics Inc",
+                "amount": 8750.00,
+                "due_date": "2026-03-15",
+                "status": "PAID",
+                "created_at": "2026-02-13T09:30:00",
+                "source": "manual_entry"
+            },
+            "INV-GLX-2026-001": {
+                "invoice_number": "INV-GLX-2026-001",
+                "vendor_id": "VND-003",
+                "vendor_name": "Globex Software Technologies",
+                "amount": 3200.00,
+                "due_date": "2026-03-31",
+                "status": "PENDING",
+                "created_at": "2026-02-01T14:15:00",
                 "source": "manual_entry"
             }
         }

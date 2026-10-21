@@ -1,0 +1,29 @@
+================================================================================
+                     GLOBEX SOFTWARE TECHNOLOGIES
+                    SUBSCRIPTION INVOICE #INV-GLX-2026-002
+================================================================================
+Vendor / Issuer : Globex Software Technologies
+Tax ID          : TX-55412-G
+Billing Contact : finance@globex.example.com
+Phone           : +1 (415) 555-0811
+
+Billing Account:
+Enterprise Cloud Operations
+
+Invoice Details:
+Issue Date      : March 01, 2026 (2026-03-01)
+Due Date        : April 30, 2026 (2026-04-30)
+Billing Period  : Q1 2026 Cloud Services
+Status          : Outstanding
+
+Service Summary:
+--------------------------------------------------------------------------------
+01 | Dedicated Kubernetes Cluster (3 Nodes)     | Monthly | $4,500.00
+02 | Premium Multi-Region S3 Storage Tier       | Usage   | $1,850.00
+03 | 24/7 Enterprise Tier SRE Support Contract  | Fixed   | $500.00
+--------------------------------------------------------------------------------
+Subtotal                                                  : $6,850.00
+TOTAL BALANCE DUE                                         : $6,850.00
+--------------------------------------------------------------------------------
+
+Please remit payments by ACH wire quoting INV-GLX-2026-002 before 2026-04-30.

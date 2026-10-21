@@ -1,0 +1,29 @@
+{
+  "invoice_number": "INV-ACM-2026-002",
+  "vendor": "Acme Logistics Inc",
+  "vendor_alias": "Acme Corp",
+  "tax_id": "TX-11884-A",
+  "issue_date": "2026-03-15",
+  "due_date": "2026-04-15",
+  "currency": "USD",
+  "payment_terms": "Net 30",
+  "line_items": [
+    {
+      "description": "International Intermodal Shipping Containers",
+      "quantity": 3,
+      "unit_price": 4200.00,
+      "total": 12600.00
+    },
+    {
+      "description": "Port Customs Expedited Clearance",
+      "quantity": 1,
+      "unit_price": 1680.50,
+      "total": 1680.50
+    }
+  ],
+  "subtotal": 14280.50,
+  "tax": 0.00,
+  "total_amount": 14280.50,
+  "status": "UNPAID",
+  "remittance_email": "accounts@acme.example.com"
+}

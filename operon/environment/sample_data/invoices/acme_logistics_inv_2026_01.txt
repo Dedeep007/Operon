@@ -1,0 +1,35 @@
+================================================================================
+                           ACME LOGISTICS INC
+                    COMMERCIAL INVOICE #INV-ACM-2026-001
+================================================================================
+Vendor / Issuer : Acme Logistics Inc
+Tax ID          : TX-11884-A
+Billing Dept    : billing@acme.example.com
+Phone           : +1 (800) 555-0144
+
+Client:
+Acme Internal Operations System
+Accounts Payable
+
+Metadata:
+Issue Date      : February 12, 2026 (2026-02-12)
+Due Date        : March 15, 2026 (2026-03-15)
+Payment Terms   : Net 15
+Status          : Issued
+
+Itemized Freight Breakdown:
+--------------------------------------------------------------------------------
+Item # | Service Description                    | Units | Rate   | Total
+--------------------------------------------------------------------------------
+01     | Cross-Country Freight Transportation   | 2     | $3,200 | $6,400.00
+02     | Warehouse Staging & Secure Palletizing | 15    | $90    | $1,350.00
+--------------------------------------------------------------------------------
+Subtotal                                                       : $7,750.00
+Fuel Surcharge (8.50%)                                         : $658.75
+State Logistics Tax                                            : $341.25
+TOTAL BALANCE DUE                                              : $8,750.00
+--------------------------------------------------------------------------------
+
+Payment Instructions:
+Due on or before 2026-03-15.
+Wire reference: INV-ACM-2026-001
