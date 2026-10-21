@@ -1,0 +1,34 @@
+================================================================================
+                         COMPANY X SOLUTIONS
+                   ENTERPRISE INVOICE #INV-X-2026-003
+================================================================================
+Vendor / Issuer : Company X Solutions
+Tax ID          : TX-99214-X
+Billing Dept    : billing@companyx.example.com
+Phone           : +1 (512) 555-0199
+
+Client:
+Acme Internal Operations System
+Accounts Payable
+
+Metadata:
+Issue Date      : March 10, 2026 (2026-03-10)
+Due Date        : April 10, 2026 (2026-04-10)
+Payment Terms   : Net 30
+Status          : Issued
+
+Itemized Breakdown:
+--------------------------------------------------------------------------------
+Item # | Description                          | Hours | Rate   | Total
+--------------------------------------------------------------------------------
+01     | Autonomous Agent Workflow Deployment | 60    | $150   | $9,000.00
+02     | Production Infrastructure Hardening  | 23    | $150   | $3,450.00
+--------------------------------------------------------------------------------
+Subtotal                                                       : $12,450.00
+State Sales Tax (8.00%)                                        : $996.00
+TOTAL BALANCE DUE                                              : $13,446.00
+--------------------------------------------------------------------------------
+
+Instructions:
+Payment is due on or before 2026-04-10.
+Please reference invoice number INV-X-2026-003 on all wire communications.

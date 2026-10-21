@@ -1,0 +1,26 @@
+================================================================================
+                                INVOICE
+================================================================================
+Invoice Number : INV-X-2026-001
+Issuer         : Company X Solutions
+Billing Address: 500 Enterprise Way, Suite 400, Austin, TX 78701
+Tax ID         : TX-99214-X
+
+Bill To:
+Acme Group Global
+Accounts Payable Department
+
+Invoice Date   : 2026-01-12
+Payment Due Date: 2026-02-15
+Payment Terms  : Net 30
+
+Line Items:
+1. Q1 Cloud Architecture Assessment               $4,500.00
+
+--------------------------------------------------------------------------------
+Subtotal:                                         $4,500.00
+Tax:                                                  $0.00
+TOTAL AMOUNT DUE:                                 $4,500.00
+--------------------------------------------------------------------------------
+
+Please remit payment via ACH or Wire Transfer to Company X Solutions.
