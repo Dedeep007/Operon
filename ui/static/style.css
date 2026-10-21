@@ -475,6 +475,66 @@ textarea::placeholder {
   border-bottom: 0;
   border-radius: 5px 5px 0 0;
 }
+.chat-bubble {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green);
+  border-radius: 5px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.chat-avatar {
+  font-size: 18px;
+  line-height: 1;
+  background: var(--green-pale);
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-body {
+  flex: 1;
+}
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.chat-author {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+}
+.chat-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--green-pale);
+  color: var(--green);
+  font-weight: 600;
+}
+.chat-badge.working {
+  background: var(--sand);
+  color: var(--rust);
+}
+.chat-badge.failed {
+  background: #fde8e8;
+  color: var(--red);
+}
+.chat-message {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+}
 .work-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
@@ -821,6 +881,253 @@ th.amount {
   color: #8a8f82;
   font-size: 10px;
 }
+
+/* Whiteboard & Scratchpad */
+.whiteboard-container {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+.wb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #fbfbf8;
+  border-bottom: 1px solid var(--line);
+}
+.wb-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wb-marker-icon {
+  font-size: 16px;
+}
+.wb-header h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+.wb-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+}
+.wb-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wb-status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f0f1ec;
+  color: var(--muted);
+}
+.wb-status-badge.working {
+  background: var(--sand);
+  color: var(--rust);
+}
+.wb-status-badge.completed {
+  background: var(--green-pale);
+  color: var(--green);
+}
+.wb-status-badge.failed {
+  background: #fde8e8;
+  color: var(--red);
+}
+.wb-tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+.wb-tool-button:hover {
+  background: #f5f5f0;
+  border-color: #cbd0c3;
+}
+.wb-canvas {
+  background: #fafaf7;
+  background-image: radial-gradient(#d6d8ce 1.1px, transparent 1.1px);
+  background-size: 16px 16px;
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.wb-card {
+  border-radius: 5px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.wb-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wb-pin {
+  font-size: 13px;
+  line-height: 1;
+}
+.wb-card-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wb-card-goal {
+  background: #fffef7;
+  border-color: #e8debf;
+}
+.wb-card-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 0;
+}
+.wb-card-facts {
+  background: #ffffff;
+  border-color: #d6e0d9;
+}
+.wb-facts-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 48px;
+  align-content: flex-start;
+}
+.wb-fact-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f2f5f1;
+  border: 1px solid #dce4dd;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+.wb-fact-tag strong {
+  color: var(--green);
+  font-weight: 600;
+}
+.wb-card-notes {
+  background: #ffffff;
+  border-color: var(--line);
+}
+.wb-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.wb-note-item {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #384038;
+  padding-left: 8px;
+  border-left: 2px solid #a8c2b0;
+}
+.wb-card-result {
+  grid-column: 1 / -1;
+  background: #f4f8f4;
+  border: 1.5px solid #a8cbbb;
+  border-left: 4px solid var(--green);
+  box-shadow: 0 2px 8px rgba(50, 88, 65, 0.05);
+}
+.wb-card-result.failed {
+  background: #fdf5f5;
+  border-color: #f0c3c3;
+  border-left-color: var(--red);
+}
+.wb-result-label {
+  color: var(--green);
+}
+.wb-stamp-badge {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--green-pale);
+  color: var(--green);
+  border: 1px solid #b7d6c2;
+}
+.wb-stamp-badge.working {
+  background: var(--sand);
+  color: var(--rust);
+  border-color: #e5ceab;
+}
+.wb-stamp-badge.failed {
+  background: #fde8e8;
+  color: var(--red);
+  border-color: #f7bebe;
+}
+.wb-result-message {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 4px 0 10px;
+}
+.wb-result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #dbe8df;
+}
+.wb-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #d2e3d7;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.wb-stat-key {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.wb-stat-val {
+  color: var(--green);
+  font-weight: 600;
+}
+.wb-empty-hint {
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--muted);
+}
 @media (min-width: 1600px) {
   .main {
     padding: 0 64px;
@@ -841,6 +1148,12 @@ th.amount {
   }
   .work-grid {
     grid-template-columns: 1fr;
+  }
+  .wb-canvas {
+    grid-template-columns: 1fr;
+  }
+  .wb-card-result {
+    grid-column: 1;
   }
   .detail-panel {
     border-left: 0;

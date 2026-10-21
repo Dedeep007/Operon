@@ -45,6 +45,8 @@ document.addEventListener("DOMContentLoaded", () => {
     currentRun = null,
     currentApproval = null,
     busy = false,
+    lastMemory = null,
+    lastPacket = null,
     seen = new Set();
 
   function element(tag, className, text) {
@@ -95,6 +97,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function reset(run) {
     currentRun = run;
     currentApproval = null;
+    lastMemory = run.scratchpad || null;
+    lastPacket = run.packet || null;
     seen = new Set();
     $("approval-panel").classList.add("hidden");
     $("evidence-banner").classList.add("hidden");
@@ -121,14 +125,143 @@ document.addEventListener("DOMContentLoaded", () => {
       "The result will be compared with source facts and the ledger.";
     $("verif-checklist").replaceChildren();
     $("verif-evidence").textContent = "";
+    if (run.packet) {
+      renderChat(run.packet, false);
+      renderWhiteboard(run.scratchpad, run.packet, false);
+    } else if (run.status === "running") {
+      renderChat(null, true);
+      renderWhiteboard(run.scratchpad, null, true);
+    } else {
+      $("chat-bubble").classList.add("hidden");
+      renderWhiteboard(null, null, false);
+    }
     setStatus(run.status);
     setBusy(!terminal.has(run.status));
     notice(run.error || "");
+  }
+  function renderChat(packet, isWorking) {
+    const bubble = $("chat-bubble");
+    if (!bubble) return;
+    if (isWorking) {
+      bubble.classList.remove("hidden");
+      $("chat-badge").textContent = "Working…";
+      $("chat-badge").className = "chat-badge working";
+      $("chat-message").textContent =
+        "Working on your request: discovering files, reading source data, and coordinating execution...";
+      return;
+    }
+    if (!packet) {
+      bubble.classList.add("hidden");
+      return;
+    }
+    bubble.classList.remove("hidden");
+    const ok = packet.status === "completed";
+    $("chat-badge").textContent = ok ? "Completed" : "Incomplete";
+    $("chat-badge").className = "chat-badge" + (ok ? "" : " failed");
+    $("chat-message").textContent = packet.agent_message || packet.summary;
+  }
+  function renderWhiteboard(memory, packet, isWorking) {
+    if (memory) lastMemory = memory;
+    if (packet) lastPacket = packet;
+    const mem = memory || lastMemory || {};
+    const pack = packet || lastPacket || null;
+
+    const goalEl = $("wb-task-goal");
+    if (goalEl) {
+      const taskVal = (currentRun && currentRun.task) ? currentRun.task : $("task-input").value.trim();
+      goalEl.textContent = taskVal || "Awaiting task description…";
+    }
+
+    const badge = $("wb-status-badge");
+    if (badge) {
+      if (isWorking) {
+        badge.textContent = "Working…";
+        badge.className = "wb-status-badge working";
+      } else if (pack) {
+        const ok = pack.status === "completed";
+        badge.textContent = ok ? "Completed" : "Incomplete";
+        badge.className = "wb-status-badge " + (ok ? "completed" : "failed");
+      } else {
+        badge.textContent = "Standby";
+        badge.className = "wb-status-badge";
+      }
+    }
+
+    const grid = $("wb-facts-grid");
+    if (grid) {
+      grid.replaceChildren();
+      const facts = Object.entries(mem.entities || {}).filter(([k]) => factLabels[k]);
+      if (!facts.length) {
+        grid.append(element("span", "wb-empty-hint", isWorking ? "Extracting entities…" : "Awaiting entity discovery…"));
+      } else {
+        facts.forEach(([key, val]) => {
+          const tag = element("span", "wb-fact-tag");
+          const label = factLabels[key] || key;
+          const displayVal = key === "amount"
+            ? "$" + Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : String(val);
+          tag.append(element("strong", "", label + ": "), document.createTextNode(displayVal));
+          grid.append(tag);
+        });
+      }
+    }
+
+    const notesList = $("wb-notes-list");
+    if (notesList) {
+      notesList.replaceChildren();
+      const notes = mem.notes || [];
+      if (!notes.length) {
+        notesList.append(element("li", "wb-empty-hint", isWorking ? "Observing tool outputs…" : "Working notes will appear here as tools execute…"));
+      } else {
+        notes.forEach((note) => {
+          notesList.append(element("li", "wb-note-item", note));
+        });
+        notesList.scrollTop = notesList.scrollHeight;
+      }
+    }
+
+    const cardResult = $("wb-card-result");
+    const stamp = $("wb-result-stamp");
+    const msg = $("wb-result-message");
+    const stats = $("wb-result-stats");
+
+    if (cardResult && stamp && msg && stats) {
+      if (isWorking && !pack) {
+        cardResult.className = "wb-card wb-card-result";
+        stamp.textContent = "Drafting…";
+        stamp.className = "wb-stamp-badge working";
+        msg.textContent = "The agent is executing steps, gathering source evidence, and preparing the final resolution…";
+        stats.classList.add("hidden");
+      } else if (pack) {
+        const ok = pack.status === "completed";
+        cardResult.className = "wb-card wb-card-result" + (ok ? "" : " failed");
+        stamp.textContent = ok ? "VERIFIED RESULT ✓" : "TASK INCOMPLETE";
+        stamp.className = "wb-stamp-badge" + (ok ? "" : " failed");
+        msg.textContent = pack.agent_message || pack.summary;
+        stats.classList.remove("hidden");
+        const statusEl = $("wb-stat-status");
+        if (statusEl) statusEl.textContent = ok ? "Verified ✓" : "Needs Review";
+        const ledgerEl = $("wb-stat-ledger");
+        if (ledgerEl) ledgerEl.textContent = (pack.created_records && pack.created_records.length) ? `+${pack.created_records.length} Record` : "Ledger Matched";
+        const hashEl = $("wb-stat-hash");
+        if (hashEl) hashEl.textContent = (pack.source_documents && pack.source_documents.length) ? `${pack.source_documents.length} Doc(s) Checked` : "Verified";
+      } else {
+        cardResult.className = "wb-card wb-card-result";
+        stamp.textContent = "Awaiting Execution";
+        stamp.className = "wb-stamp-badge";
+        msg.textContent = "The final verified outcome and deliverables will appear here upon completion.";
+        stats.classList.add("hidden");
+      }
+    }
   }
   async function start(mode) {
     const task = $("task-input").value.trim();
     if (!task || busy) return;
     notice("");
+    lastMemory = null;
+    lastPacket = null;
+    renderChat(null, true);
+    renderWhiteboard(null, null, true);
     setBusy(true);
     try {
       const run = await post("/api/runs", { task, mode });
@@ -136,6 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       notice(error.message);
       setBusy(false);
+      renderChat(null, false);
     }
   }
   async function openRun(id) {
@@ -279,6 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     if (memory.source_documents && memory.source_documents.length)
       renderSources(memory.source_documents);
+    renderWhiteboard(memory, null, currentRun ? currentRun.status === "running" : true);
   }
   function renderSources(sources) {
     $("source-list").replaceChildren();
@@ -330,6 +465,8 @@ document.addEventListener("DOMContentLoaded", () => {
       `Evidence SHA-256: ${packet.evidence_sha256}`;
     $("download-evidence").href = `/api/runs/${packet.run_id}/evidence`;
     renderSources(packet.source_documents);
+    renderChat(packet, false);
+    renderWhiteboard(null, packet, false);
   }
   async function decide(approved) {
     if (!currentApproval) return;
@@ -470,6 +607,21 @@ document.addEventListener("DOMContentLoaded", () => {
       notice(error.message);
     }
   });
+  const copyBtn = $("btn-copy-whiteboard");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const task = $("wb-task-goal") ? $("wb-task-goal").textContent : "";
+      const facts = Array.from(document.querySelectorAll("#wb-facts-grid .wb-fact-tag")).map(t => t.textContent).join(" | ");
+      const notes = Array.from(document.querySelectorAll("#wb-notes-list .wb-note-item")).map(n => "• " + n.textContent).join("\n");
+      const result = $("wb-result-message") ? $("wb-result-message").textContent : "";
+      const text = `📋 OPERON AGENT WHITEBOARD & SCRATCHPAD\n=======================================\n🎯 TASK OBJECTIVE:\n${task}\n\n🏷️ EXTRACTED ENTITIES:\n${facts || "None"}\n\n✍️ WORKING NOTES:\n${notes || "None"}\n\n🏆 FINAL RESULT & DELIVERABLE:\n${result}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<span aria-hidden="true">✓</span> Copied!';
+        setTimeout(() => { copyBtn.innerHTML = originalText; }, 2000);
+      }).catch(() => {});
+    });
+  }
   api("/api/info")
     .then((info) => ($("model-name").textContent = info.model_name))
     .catch((error) => notice(error.message));

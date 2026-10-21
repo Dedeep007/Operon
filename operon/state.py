@@ -47,6 +47,7 @@ class EvidencePacket(BaseModel):
     task: str
     status: Literal["completed", "failed", "partially_completed"]
     summary: str
+    agent_message: str = Field(default="", description="Direct conversational response addressing the user")
     total_actions_taken: int
     execution_time_seconds: float
     verification: Optional[VerificationResult] = None

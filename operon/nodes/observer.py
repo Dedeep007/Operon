@@ -35,6 +35,21 @@ def observer_node(state: OperonState) -> Dict[str, Any]:
         
         # Advance to next step
         next_idx = idx + 1
+
+        # If a file search yielded zero results, skip dependent document-reading steps gracefully
+        if current_step.tool_name == "search_files" and not last_exec.get("data"):
+            scratchpad.record_entity("search_no_results", True)
+            term = (current_step.tool_args.get("pattern") or current_step.tool_args.get("query")
+                    or current_step.tool_args.get("filename") or "requested file").replace("*", "").strip()
+            scratchpad.record_entity("searched_term", term)
+            scratchpad.notes.append(f"Storage search completed: No matching files found for '{term}'.")
+            for remaining in plan[next_idx:]:
+                if remaining.tool_name in ("read_document", "extract_invoice_data"):
+                    remaining.status = "skipped"
+                    remaining.error = f"Skipped: No matching files found in storage for '{term}'."
+            if all(s.status in ("completed", "skipped") for s in plan):
+                next_idx = len(plan)
+
         if next_idx >= len(plan):
             next_status = "verifying"
         else:

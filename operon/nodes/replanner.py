@@ -62,11 +62,14 @@ def replanner_node(state):
             step.tool_args["vendor_id"] = known
             return retry(f"Resolved vendor_id to '{known}' from working memory")
         return stop("The source vendor could not be resolved. Check the registered vendor or onboard it first.")
-    if error and error.error_type == "FileNotFoundError" and step.tool_name == "find_latest_invoice_file":
-        fallback = str(settings.sample_data_dir / "invoices")
-        if step.tool_args.get("directory") and step.tool_args["directory"] != fallback:
-            step.tool_args["directory"] = fallback
-            return retry("Redirected directory path to verified sample data storage")
+    if error and error.error_type == "FileNotFoundError":
+        if step.tool_name == "find_latest_invoice_file":
+            fallback = str(settings.sample_data_dir / "invoices")
+            if step.tool_args.get("directory") and step.tool_args["directory"] != fallback:
+                step.tool_args["directory"] = fallback
+                return retry("Redirected directory path to verified sample data storage")
+            return stop(error.message or "No matching source invoice found in storage.")
+        return stop(error.message or "Requested document was not found in storage.")
     if any(term in message for term in ("DuplicateInvoiceError", "DuplicateVendorError", "MissingContextError", "PreviewBlockedError")):
         return stop("The action cannot proceed with the available information. Check the source data and ledger conflict.")
     return retry("Retrying after an unexpected tool failure; attempts are capped.")

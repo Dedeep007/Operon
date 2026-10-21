@@ -148,6 +148,95 @@ Find the latest invoice from Company X, extract the amount and due date, enter i
           PREVIEW · Results below belong to a separate ledger copy. The company
           ledger is unchanged.
         </div>
+        <div id="chat-bubble" class="chat-bubble hidden" aria-live="polite">
+          <div class="chat-avatar" aria-hidden="true">🤖</div>
+          <div class="chat-body">
+            <div class="chat-header">
+              <span class="chat-author">Operon Task Worker</span>
+              <span id="chat-badge" class="chat-badge">Completed</span>
+            </div>
+            <p id="chat-message" class="chat-message"></p>
+          </div>
+        </div>
+
+        <!-- Live Scratchpad & Whiteboard -->
+        <section id="scratchpad-board" class="whiteboard-container" aria-labelledby="wb-title">
+          <div class="wb-header">
+            <div class="wb-title-group">
+              <span class="wb-marker-icon" aria-hidden="true">📋</span>
+              <div>
+                <h3 id="wb-title">Agent Whiteboard & Scratchpad</h3>
+                <span id="wb-subtitle" class="wb-subtitle">Live deductions, working notes & final verified result</span>
+              </div>
+            </div>
+            <div class="wb-controls">
+              <span id="wb-status-badge" class="wb-status-badge">Standby</span>
+              <button id="btn-copy-whiteboard" class="wb-tool-button" type="button" title="Copy whiteboard summary" aria-label="Copy whiteboard content">
+                <span aria-hidden="true">📋</span> Copy Board
+              </button>
+            </div>
+          </div>
+
+          <div class="wb-canvas">
+            <!-- 1. Task Goal Sticky Note -->
+            <div class="wb-card wb-card-goal">
+              <div class="wb-card-header">
+                <span class="wb-pin" aria-hidden="true">📌</span>
+                <span class="wb-card-label">TASK OBJECTIVE</span>
+              </div>
+              <p id="wb-task-goal" class="wb-card-text">Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</p>
+            </div>
+
+            <!-- 2. Discovered Facts & Extracted Memory -->
+            <div class="wb-card wb-card-facts">
+              <div class="wb-card-header">
+                <span class="wb-pin" aria-hidden="true">🏷️</span>
+                <span class="wb-card-label">EXTRACTED ENTITIES</span>
+              </div>
+              <div id="wb-facts-grid" class="wb-facts-grid">
+                <span class="wb-empty-hint">Awaiting entity discovery…</span>
+              </div>
+            </div>
+
+            <!-- 3. Real-time Scratchpad Working Notes -->
+            <div class="wb-card wb-card-notes">
+              <div class="wb-card-header">
+                <span class="wb-pin" aria-hidden="true">✍️</span>
+                <span class="wb-card-label">AGENT WORKING NOTES</span>
+              </div>
+              <ul id="wb-notes-list" class="wb-notes-list">
+                <li class="wb-empty-hint">Working notes will appear here as tools execute…</li>
+              </ul>
+            </div>
+
+            <!-- 4. Final Result & Deliverable Card (Prominent display) -->
+            <div id="wb-card-result" class="wb-card wb-card-result">
+              <div class="wb-card-header">
+                <span class="wb-pin wb-pin-result" aria-hidden="true">🏁</span>
+                <span class="wb-card-label wb-result-label">FINAL RESULT & RESOLUTION</span>
+                <span id="wb-result-stamp" class="wb-stamp-badge">Awaiting Execution</span>
+              </div>
+              <div id="wb-result-body" class="wb-result-body">
+                <p id="wb-result-message" class="wb-result-message">The final verified outcome and deliverables will appear here upon completion.</p>
+                <div id="wb-result-stats" class="wb-result-stats hidden">
+                  <div class="wb-stat-pill">
+                    <span class="wb-stat-key">Status</span>
+                    <strong id="wb-stat-status" class="wb-stat-val">—</strong>
+                  </div>
+                  <div class="wb-stat-pill">
+                    <span class="wb-stat-key">Ledger</span>
+                    <strong id="wb-stat-ledger" class="wb-stat-val">—</strong>
+                  </div>
+                  <div class="wb-stat-pill">
+                    <span class="wb-stat-key">Integrity</span>
+                    <strong id="wb-stat-hash" class="wb-stat-val">—</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div class="work-grid">
           <section class="activity-panel">
             <div class="panel-heading">

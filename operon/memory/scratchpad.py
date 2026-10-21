@@ -4,6 +4,7 @@ Maintains discovered entities, cross-step state, extracted parameters,
 and allows dynamic reference interpolation between execution steps.
 """
 
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 import re
 from pydantic import BaseModel, Field
@@ -21,6 +22,11 @@ class Scratchpad(BaseModel):
         """Store an entity in working memory."""
         self.entities[key] = value
 
+    def add_note(self, note: str):
+        """Append a unique observation note to working memory."""
+        if note and note not in self.notes:
+            self.notes.append(note)
+
     def get_entity(self, key: str, default: Any = None) -> Any:
         """Retrieve an entity from working memory."""
         return self.entities.get(key, default)
@@ -36,6 +42,7 @@ class Scratchpad(BaseModel):
         # If data is a string (e.g. read_document)
         if isinstance(data, str):
             self.extracted_data[f"raw_text_{step_id or len(self.extracted_data)}"] = data
+            self.add_note(f"Loaded document text ({len(data)} characters).")
             return
 
         # If data is a list of items (e.g. search_files, erp_list_invoices)
@@ -49,6 +56,7 @@ class Scratchpad(BaseModel):
                 self.record_entity("latest_file_path", self.files_found[0])
                 if isinstance(data[0], dict) and "filename" in data[0]:
                     self.record_entity("filename", data[0]["filename"])
+            self.add_note(f"Storage search located {len(data)} file(s).")
             return
 
         if not isinstance(data, dict):
@@ -59,6 +67,8 @@ class Scratchpad(BaseModel):
             if document not in self.source_documents:
                 self.source_documents.append(document)
             self.record_entity("file_path", data["file_path"])
+            f_name = Path(data["file_path"]).name
+            self.add_note(f"Verified source document '{f_name}' (SHA-256: {data['sha256'][:12]}...).")
         if data.get("content"):
             c_val = data["content"]
             self.extracted_data[f"document_content_{step_id or len(self.extracted_data)}"] = c_val
@@ -72,6 +82,9 @@ class Scratchpad(BaseModel):
             self.extracted_data["vendor_info"] = data["vendor_data"]
             for key, value in data["vendor_data"].items():
                 self.record_entity("vendor_name" if key == "name" else key, value)
+            v_name = data["vendor_data"].get("name", "Vendor")
+            t_id = data["vendor_data"].get("tax_id", "N/A")
+            self.add_note(f"Parsed vendor profile for '{v_name}' (Tax ID: {t_id}).")
 
         # If an invoice file was found or parsed
         if "invoice_data" in data:
@@ -92,6 +105,10 @@ class Scratchpad(BaseModel):
             elif "latest_file_path" in data:
                 self.files_found.append(data["latest_file_path"])
                 self.record_entity("file_path", data["latest_file_path"])
+            self.add_note(
+                f"Discovered invoice #{inv.get('invoice_number', 'N/A')} from {inv.get('vendor', 'vendor')} "
+                f"for ${inv.get('amount', 'N/A')} due {inv.get('due_date', 'N/A')}."
+            )
 
         # If direct invoice extraction
         if "amount" in data and "due_date" in data:
@@ -104,6 +121,10 @@ class Scratchpad(BaseModel):
             self.record_entity("due_date", data["due_date"])
             if data.get("vendor"):
                 self.record_entity("vendor_name", data["vendor"])
+            self.add_note(
+                f"Extracted invoice fields: #{data.get('invoice_number', 'N/A')} | "
+                f"Amount: ${data.get('amount', 'N/A')} | Due: {data.get('due_date', 'N/A')}."
+            )
 
         # If vendor was looked up
         if "vendor_id" in data:
@@ -111,11 +132,13 @@ class Scratchpad(BaseModel):
             self.record_entity("vendor_id", data["vendor_id"])
             if "name" in data:
                 self.record_entity("vendor_name", data["name"])
+            self.add_note(f"ERP Vendor Lookup: Matched '{data.get('name', 'vendor')}' to Vendor ID: {data['vendor_id']}.")
 
         # If invoice was created
         if tool_name == "erp_create_invoice" and "invoice_number" in data:
             self.record_entity("created_invoice_number", data["invoice_number"])
             self.record_entity("created_invoice_record", data)
+            self.add_note(f"ERP Ledger Action: Created invoice #{data['invoice_number']} for ${data.get('amount', 'N/A')} under Vendor ID {data.get('vendor_id', 'N/A')}.")
 
     def interpolate_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Dynamically resolve placeholders in tool arguments using working memory."""

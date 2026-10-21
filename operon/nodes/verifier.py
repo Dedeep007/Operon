@@ -15,8 +15,10 @@ def verifier_node(state):
     checks, discrepancies, evidence = [], [], []
     if state.get("approval_rejected"):
         discrepancies.append("The requested action was declined. No further actions were executed.")
-    if any(s.status != "completed" for s in plan):
+    if any(s.status not in ("completed", "skipped") for s in plan):
         discrepancies.append("One or more planned steps did not complete.")
+    elif any(s.status == "skipped" for s in plan) and not memory.get_entity("search_no_results"):
+        discrepancies.append("One or more planned steps were skipped due to an earlier failure.")
     for error in state.get("errors", []):
         if error.step_id == 0:
             discrepancies.append(error.message)
@@ -84,21 +86,28 @@ def verifier_node(state):
                 if record.get(field) != value:
                     discrepancies.append(f"Vendor {field} differs from the source profile.")
             evidence.append(f"Registered Vendor: {record['name']} (ID: {record['vendor_id']})")
-    elif plan and all(s.status == "completed" for s in plan):
-        checks.append("Verify autonomous plan execution outcome")
-        if memory.source_documents:
-            docs = [Path(d["file_path"]).name for d in memory.source_documents]
-            evidence.append(f"Source Document Verified: {', '.join(docs)}")
-        elif memory.files_found:
-            files = [Path(f).name for f in memory.files_found[:3]]
-            evidence.append(f"Matching Files Discovered: {', '.join(files)}")
-        else:
-            last_action = state.get("action_history", [])[-1] if state.get("action_history") else None
-            if last_action and last_action.success:
-                obs_summary = str(last_action.observation)[:120] if last_action.observation else "Success"
-                evidence.append(f"Action '{last_action.tool_name}' verified: {obs_summary}")
+    elif plan and all(s.status in ("completed", "skipped") for s in plan):
+        if memory.get_entity("search_no_results"):
+            checks.append("Verify storage search results")
+            term = memory.get_entity("searched_term") or state["task"]
+            evidence.append(f"Storage search completed: No matching files found for '{term}' in repository storage.")
+        elif all(s.status == "completed" for s in plan):
+            checks.append("Verify autonomous plan execution outcome")
+            if memory.source_documents:
+                docs = [Path(d["file_path"]).name for d in memory.source_documents]
+                evidence.append(f"Source Document Verified: {', '.join(docs)}")
+            elif memory.files_found:
+                files = [Path(f).name for f in memory.files_found[:3]]
+                evidence.append(f"Matching Files Discovered: {', '.join(files)}")
             else:
-                evidence.append("All planned steps completed without discrepancy.")
+                last_action = state.get("action_history", [])[-1] if state.get("action_history") else None
+                if last_action and last_action.success:
+                    obs_summary = str(last_action.observation)[:120] if last_action.observation else "Success"
+                    evidence.append(f"Action '{last_action.tool_name}' verified: {obs_summary}")
+                else:
+                    evidence.append("All planned steps completed without discrepancy.")
+        else:
+            discrepancies.append("One or more planned steps did not complete.")
     else:
         discrepancies.append("The requested outcome has no supported independent verifier.")
 
