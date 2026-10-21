@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operon — Autonomous AI Task Worker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="logo-orb"></div>
+                <div class="brand-text">
+                    <h1>OPERON</h1>
+                    <span class="badge-tag">AUTONOMOUS TASK WORKER</span>
+                </div>
+            </div>
+            <div class="system-pills">
+                <div class="pill pill-model">
+                    <span class="status-dot active"></span>
+                    <span class="pill-label">LLM:</span>
+                    <strong id="model-name">Qwen 3.8 27B (Groq LPU)</strong>
+                </div>
+                <div class="pill pill-graph">
+                    <span class="status-dot active"></span>
+                    <span class="pill-label">Engine:</span>
+                    <strong>LangGraph StateGraph</strong>
+                </div>
+                <div class="pill pill-erp">
+                    <span class="status-dot active"></span>
+                    <span class="pill-label">ERP:</span>
+                    <strong>Simulated ACID Ledger</strong>
+                </div>
+                <button id="btn-reset-erp" class="btn-sm btn-ghost" title="Reset ERP to initial state">Reset ERP</button>
+            </div>
+        </header>
+
+        <!-- Goal Formulation Hero -->
+        <section class="goal-hero">
+            <div class="hero-header">
+                <h2>Autonomous Goal Specification</h2>
+                <p>Provide a high-level natural language request. Operon will decompose, plan, execute tools, observe, self-heal, verify, and return concrete evidence.</p>
+            </div>
+            
+            <div class="input-card">
+                <div class="input-wrapper">
+                    <textarea id="task-input" rows="2" placeholder="e.g. Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</textarea>
+                    <button id="btn-run" class="btn-primary">
+                        <span class="btn-text">Execute Autonomously</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                </div>
+                
+                <div class="preset-chips">
+                    <span class="chip-label">Quick Presets:</span>
+                    <button class="chip active" data-task="Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.">Invoice Processing (Problem Statement)</button>
+                    <button class="chip" data-task="Read the vendor profile for Apex Technologies from file, and register them into our internal ERP system.">Vendor Onboarding (Generalization)</button>
+                    <button class="chip" data-task="Enter an invoice for Company X with amount '$13,446.00' and due date '2026-04-10', and verify the ledger.">Self-Healing Recovery Demo</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual LangGraph State Machine Flow -->
+        <section class="graph-visualizer">
+            <div class="section-title-row">
+                <h3>LangGraph Cognitive Execution Loop</h3>
+                <span id="loop-status" class="badge-status">IDLE</span>
+            </div>
+            <div class="pipeline">
+                <div class="pipeline-node" id="node-planner">
+                    <div class="node-icon">1</div>
+                    <div class="node-label">Planner</div>
+                    <div class="node-sub">Goal Decomposition</div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-node" id="node-executor">
+                    <div class="node-icon">2</div>
+                    <div class="node-label">Executor</div>
+                    <div class="node-sub">Tool Invocation</div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-node" id="node-observer">
+                    <div class="node-icon">3</div>
+                    <div class="node-label">Observer</div>
+                    <div class="node-sub">Output & Memory</div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-node" id="node-replanner">
+                    <div class="node-icon">4</div>
+                    <div class="node-label">Replanner</div>
+                    <div class="node-sub">Self-Healing / Retry</div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-node" id="node-verifier">
+                    <div class="node-icon">5</div>
+                    <div class="node-label">Verifier</div>
+                    <div class="node-sub">Ground-Truth Audit</div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-node" id="node-summarizer">
+                    <div class="node-icon">6</div>
+                    <div class="node-label">Summarizer</div>
+                    <div class="node-sub">Evidence Packet</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3-Column Execution Workspace -->
+        <main class="workspace-grid">
+            <!-- Column 1: Action Plan & Timeline -->
+            <div class="workspace-col col-plan">
+                <div class="panel-header">
+                    <h4>Action Plan & Execution Log</h4>
+                    <span id="plan-count" class="counter">0 Steps</span>
+                </div>
+                <div class="panel-body" id="plan-container">
+                    <div class="empty-state">No active task. Click "Execute Autonomously" to generate a plan.</div>
+                </div>
+            </div>
+
+            <!-- Column 2: Working Memory (Scratchpad) -->
+            <div class="workspace-col col-memory">
+                <div class="panel-header">
+                    <h4>Context Working Memory</h4>
+                    <span class="counter">Live Scratchpad</span>
+                </div>
+                <div class="panel-body" id="memory-container">
+                    <div class="memory-card">
+                        <span class="memory-label">Discovered Entities</span>
+                        <div id="entities-list" class="entities-grid">
+                            <span class="empty-text">No entities extracted yet.</span>
+                        </div>
+                    </div>
+                    <div class="memory-card">
+                        <span class="memory-label">Step Results Cache</span>
+                        <div id="step-results-list" class="code-box">{}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Column 3: Independent Verification & ERP State -->
+            <div class="workspace-col col-verification">
+                <div class="panel-header">
+                    <h4>Independent Verification & ERP</h4>
+                    <span id="verif-badge" class="badge-status">AWAITING</span>
+                </div>
+                <div class="panel-body">
+                    <!-- Verification Box -->
+                    <div class="verif-box" id="verif-box">
+                        <div class="verif-score-row">
+                            <div class="verif-meter">
+                                <span class="score-num" id="verif-score">0%</span>
+                                <span class="score-label">Confidence</span>
+                            </div>
+                            <div class="verif-status-text">
+                                <strong id="verif-status-title">Pending Verification</strong>
+                                <p id="verif-status-desc">Auditor inspects ledger state after task execution.</p>
+                            </div>
+                        </div>
+                        <ul id="verif-checklist" class="checklist"></ul>
+                        <div id="verif-evidence" class="evidence-tag"></div>
+                    </div>
+
+                    <!-- Live ERP State Snapshot -->
+                    <div class="erp-snapshot">
+                        <div class="erp-header">
+                            <h5>ERP Ledger Invoices</h5>
+                            <button id="btn-refresh-erp" class="btn-xs">Refresh</button>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="erp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Invoice #</th>
+                                        <th>Vendor</th>
+                                        <th>Amount</th>
+                                        <th>Due Date</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="erp-table-body">
+                                    <tr><td colspan="5" class="center-text">Loading ERP records...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Final Evidence Packet Banner -->
+        <section id="evidence-banner" class="evidence-banner hidden">
+            <div class="evidence-header">
+                <div class="evidence-title">
+                    <span class="evidence-icon">&check;</span>
+                    <div>
+                        <h4>TASK COMPLETED & AUDITED</h4>
+                        <p id="evidence-summary-text"></p>
+                    </div>
+                </div>
+                <div class="evidence-stats">
+                    <div class="stat"><span class="stat-num" id="stat-actions">0</span><span class="stat-lbl">Actions</span></div>
+                    <div class="stat"><span class="stat-num" id="stat-time">0.0s</span><span class="stat-lbl">Duration</span></div>
+                    <div class="stat"><span class="stat-num" id="stat-diff">0</span><span class="stat-lbl">New Records</span></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
