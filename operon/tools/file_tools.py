@@ -211,9 +211,15 @@ def find_latest_invoice_file(
     name="write_file",
     description="Write content to a file at specified destination."
 )
-def write_file(file_path: str, content: str) -> str:
+def write_file(file_path: Optional[str] = None, destination: Optional[str] = None, content: str = "", **kwargs) -> str:
     """Save content to disk."""
-    p = Path(file_path)
+    import tempfile
+    target = file_path or destination or kwargs.get("path") or "output.txt"
+    if target.startswith("/tmp/") or target.startswith("\\tmp\\"):
+        filename = Path(target).name
+        p = Path(tempfile.gettempdir()) / filename
+    else:
+        p = Path(target)
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         f.write(content)
