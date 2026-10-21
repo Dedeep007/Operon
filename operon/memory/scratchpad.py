@@ -38,6 +38,19 @@ class Scratchpad(BaseModel):
             self.extracted_data[f"raw_text_{step_id or len(self.extracted_data)}"] = data
             return
 
+        # If data is a list of items (e.g. search_files, erp_list_invoices)
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and "path" in item:
+                    if item["path"] not in self.files_found:
+                        self.files_found.append(item["path"])
+            if self.files_found:
+                self.record_entity("file_path", self.files_found[0])
+                self.record_entity("latest_file_path", self.files_found[0])
+                if isinstance(data[0], dict) and "filename" in data[0]:
+                    self.record_entity("filename", data[0]["filename"])
+            return
+
         if not isinstance(data, dict):
             return
 
@@ -45,8 +58,18 @@ class Scratchpad(BaseModel):
             document = {"file_path": data["file_path"], "sha256": data["sha256"]}
             if document not in self.source_documents:
                 self.source_documents.append(document)
+            self.record_entity("file_path", data["file_path"])
+        if data.get("content"):
+            c_val = data["content"]
+            self.extracted_data[f"document_content_{step_id or len(self.extracted_data)}"] = c_val
+            self.record_entity("content", c_val)
+            self.record_entity("document_content", c_val)
+            self.record_entity("invoice_content", c_val)
+            self.record_entity("file_content", c_val)
+            self.record_entity("text", c_val)
         if "vendor_data" in data:
             self.extracted_data["vendor_profile"] = data["vendor_data"]
+            self.extracted_data["vendor_info"] = data["vendor_data"]
             for key, value in data["vendor_data"].items():
                 self.record_entity("vendor_name" if key == "name" else key, value)
 
@@ -54,6 +77,7 @@ class Scratchpad(BaseModel):
         if "invoice_data" in data:
             inv = data["invoice_data"]
             self.extracted_data["latest_invoice"] = inv
+            self.extracted_data["invoice_data"] = inv
             if inv.get("invoice_number"):
                 self.record_entity("invoice_number", inv["invoice_number"])
             if inv.get("amount"):
@@ -73,6 +97,7 @@ class Scratchpad(BaseModel):
         if "amount" in data and "due_date" in data:
             if tool_name == "extract_invoice_data":
                 self.extracted_data["invoice_source"] = dict(data)
+                self.extracted_data["invoice_data"] = dict(data)
             if data.get("invoice_number"):
                 self.record_entity("invoice_number", data["invoice_number"])
             self.record_entity("amount", data["amount"])
@@ -82,6 +107,7 @@ class Scratchpad(BaseModel):
 
         # If vendor was looked up
         if "vendor_id" in data:
+            self.extracted_data["vendor_info"] = dict(data)
             self.record_entity("vendor_id", data["vendor_id"])
             if "name" in data:
                 self.record_entity("vendor_name", data["name"])
@@ -126,22 +152,31 @@ class Scratchpad(BaseModel):
                         if val is None:
                             val = self.entities.get(field)
 
-                # Pattern 3: Generic reference e.g. {{vendor_id}}, {{scratchpad.amount}}
+                # Pattern 3: Generic or dotted reference e.g. {{invoice_data.amount}}, {{vendor_id}}
                 if val is None:
                     var_name = v.strip("{} ").replace("scratchpad.", "")
-                    val = self.get_entity(var_name)
+                    # Dotted expression: {{output_ref.field}} or {{latest_invoice.file_path}}
+                    if "." in var_name:
+                        ref_name, field_name = var_name.split(".", 1)
+                        val = self.get_entity(field_name)
+                        if val is None and ref_name in self.extracted_data and isinstance(self.extracted_data[ref_name], dict):
+                            val = self.extracted_data[ref_name].get(field_name)
                     if val is None:
-                        # Try stripping step indicator if present
+                        val = self.get_entity(var_name)
+                    if val is None:
                         clean_var = re.sub(r"(_from)?_step_\d+", "", var_name)
                         clean_var = re.sub(r"^step_\d+_", "", clean_var)
                         val = self.get_entity(clean_var)
-
+                    if val is None and any(w in var_name.lower() for w in ("content", "text")):
+                        val = self.get_entity("content") or self.get_entity("invoice_content") or self.get_entity("document_content")
+                    if val is None and ("file" in var_name.lower() or "path" in var_name.lower()):
+                        val = self.get_entity("file_path") or self.get_entity("latest_file_path")
                     if val is None:
-                        # Fuzzy search entities for substring match
                         for ek, ev in self.entities.items():
                             if ek.lower() in var_name.lower() or var_name.lower() in ek.lower():
                                 val = ev
                                 break
+
 
                 # Fallback to key itself if still unresolved but present in entities
                 if val is None and k in self.entities:

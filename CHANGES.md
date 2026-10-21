@@ -145,7 +145,14 @@ The extensions that distinguish this prototype are the **same-graph ERP preview*
 - The real recovery demo completed after a failed validation attempt and successful retry.
 - Browser inspection confirmed the redesigned layout, a completed preview with the company ledger unchanged, a real OmniCorp approval pause, a declined action with no invoice created, saved history replay, and the narrow-screen history toggle.
 - The Python wheel built successfully with `pip wheel . --no-deps --wheel-dir storage/package-check`; its contents include the CLI module and sample invoice/vendor data.
-- No paid/live Groq request was used for validation. The optional live integration remains configurable and its fallback is disclosed in reports.
+### 6. Live LLM Agent on Simulation Dummy Data
+
+- **Active Groq Reasoning in Sandbox**: Removed artificial offline constraints (`settings.environment != "simulation"`) so that whenever a `GROQ_API_KEY` is provided, the live Groq model (`qwen/qwen3.8-27b`) acts as the primary cognitive engine across all simulated files, mock ERP records, and intranet tools.
+- **Universal Tool Support**: Expanded `SUPPORTED_TOOLS` to include all registered tools (`search_files`, `read_document`, `write_file`, `erp_*`, `browser_*`, `api_request`).
+- **Generalized Dynamic Planning**: Updated `PLANNER_SYSTEM_PROMPT` to allow the LLM to autonomously deconstruct arbitrary natural-language requests into grounded steps.
+- **Resilient Argument Normalization**: Handled schema variations (`tool_args`, `args`, `input`, `tool`, `tool_name`, `output_ref`, dotted placeholders like `{{invoice_data.amount}}`) in the scratchpad working memory.
+- **Extended Simulation Data**: Added dummy architectural blueprints, invoices, documents, and vendor profiles for Balaji Construction and Titan Industrial to allow exploratory searches and verifications.
+- **Guaranteed Test Offline Isolation**: Maintained complete offline determinism for test fixtures; all 64 pytest test cases pass cleanly without external network calls.
 
 ### Screenshots from the running prototype
 

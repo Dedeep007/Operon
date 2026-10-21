@@ -1,0 +1,33 @@
+PROJECT SPECIFICATION & ARCHITECTURAL BLUEPRINT
+=====================================================
+Entity: Balaji Construction & Infrastructure Ltd
+Project Name: Cyber Gateway Phase II Commercial Complex
+Document Ref: BP-BLJ-2026-904
+Architectural Firm: Balaji Engineering & Structural Design
+Date of Filing: 2026-03-15
+Location: Plot 42, Outer Ring Commercial Corridor, Sector 5
+
+ARCHITECTURAL SPECIFICATIONS & BLUEPRINT OVERVIEW:
+--------------------------------------------------
+1. Structural Layout & Footprint:
+   - Primary Structural System: Reinforced seismic-resistant concrete frame (Grade M40) with post-tensioned floor slabs.
+   - Foundation Type: Deep bored cast-in-situ concrete piles (diameter 1200mm, depth 28m) bearing on bedrock.
+   - Built-Up Area: 85,000 sq ft across 14 above-ground office floors and 3 basement levels.
+   - Maximum Height: 58.5 meters above finished ground level.
+
+2. Mechanical, Electrical & Plumbing (MEP) Layout:
+   - Central HVAC: Dual 600 TR energy-efficient water-cooled chillers with variable refrigerant flow (VRF) secondary loops.
+   - Power Distribution: Dedicated 11kV substation, dual 1600kVA transformers, and 100% automated diesel generator backup.
+   - Fire Suppression: Fully automated wet-pipe sprinkler network conforming to NFPA 13 and National Building Code.
+
+3. Blueprint Drawings and Floor Plate Architecture:
+   - Level 00 (Ground): Grand reception atrium, security turnstiles, and commercial service arcade (Ref: DWG-BLJ-L00-REV3).
+   - Levels 01-12: Column-free modular commercial workspace plates with 3.8m floor-to-ceiling clearance (Ref: DWG-BLJ-TYP-REV2).
+   - Level 13-14: Executive boardroom suites and landscaped terrace pavilion (Ref: DWG-BLJ-PH-REV1).
+   - Basements B1-B3: Automated triple-level vehicle parking with integrated EV fast-charging bays (Ref: DWG-BLJ-B13-REV2).
+
+4. Environmental & Municipal Approvals:
+   - Green Building Rating: IGBC Platinum Pre-Certified.
+   - Municipal Authority Sanction Ref: MBA-2026-BLJ-0914.
+
+STATUS: ARCHITECTURAL BLUEPRINT OFFICIALLY APPROVED & RECORDED IN ARCHIVE.

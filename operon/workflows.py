@@ -7,8 +7,11 @@ from operon.environment.context import get_erp
 
 SUPPORTED_TOOLS = {
     "find_latest_invoice_file", "read_document", "search_files", "extract_invoice_data",
-    "read_vendor_profile", "erp_lookup_vendor", "erp_create_invoice", "erp_get_invoice",
-    "erp_list_invoices", "erp_register_vendor", "erp_verify_invoice_status",
+    "read_vendor_profile", "write_file",
+    "erp_lookup_vendor", "erp_create_invoice", "erp_get_invoice",
+    "erp_list_invoices", "erp_register_vendor", "erp_verify_invoice_status", "erp_delete_record",
+    "browser_navigate", "browser_fill_form", "browser_get_dom",
+    "api_request",
 }
 
 
@@ -26,7 +29,7 @@ def offline_plan(task):
                 if re.search(r"\b" + re.escape(alias.casefold()) + r"\b", lowered):
                     matches.append((len(alias), vendor["name"]))
         if not matches:
-            return {"steps": [], "error": "Specify a known company for invoice processing: Company X, Acme, Globex, or OmniCorp."}
+            return {"steps": [], "error": "Specify a known company for invoice processing: Company X, Acme, Globex, Balaji, or OmniCorp."}
         company = max(matches)[1]
         if "latest" not in lowered and "recent" not in lowered:
             return {"steps": [], "error": "Offline invoice processing supports the latest source invoice. Ask to process the latest invoice for a company."}
@@ -50,5 +53,13 @@ def offline_plan(task):
                         "name": "{{vendor_name}}", "tax_id": "{{tax_id}}",
                         "payment_terms": "{{payment_terms}}", "contact_email": "{{contact_email}}"}),
                 ]}
-        return {"steps": [], "error": "Specify a vendor with a local onboarding profile: Apex, Quantum, Horizon, or Cyberdyne."}
-    return {"steps": [], "error": "This prototype supports latest-invoice processing and vendor onboarding in the supplied sandbox."}
+        return {"steps": [], "error": "Specify a vendor with a local onboarding profile: Apex, Quantum, Horizon, Cyberdyne, or Balaji."}
+    if any(word in lowered for word in ("blueprint", "document", "spec", "drawing", "file", "search", "find", "read")):
+        stop_words = {"the", "of", "find", "a", "an", "and", "in", "to", "for", "please", "me", "show", "get", "read", "look", "up"}
+        words = [w for w in re.findall(r"[a-z0-9]+", lowered) if w not in stop_words]
+        term = words[0] if words else "balaji"
+        return {"steps": [
+            step(1, f"Search storage for '{term}' files and documents", "search_files", {"pattern": f"*{term}*"}),
+            step(2, f"Read the discovered document content", "read_document", {"file_path": "{{file_path}}"}),
+        ]}
+    return {"steps": [], "error": "This action cannot be completed with the available tools in the supplied sandbox."}

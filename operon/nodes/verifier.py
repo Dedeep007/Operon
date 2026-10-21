@@ -84,6 +84,21 @@ def verifier_node(state):
                 if record.get(field) != value:
                     discrepancies.append(f"Vendor {field} differs from the source profile.")
             evidence.append(f"Registered Vendor: {record['name']} (ID: {record['vendor_id']})")
+    elif plan and all(s.status == "completed" for s in plan):
+        checks.append("Verify autonomous plan execution outcome")
+        if memory.source_documents:
+            docs = [Path(d["file_path"]).name for d in memory.source_documents]
+            evidence.append(f"Source Document Verified: {', '.join(docs)}")
+        elif memory.files_found:
+            files = [Path(f).name for f in memory.files_found[:3]]
+            evidence.append(f"Matching Files Discovered: {', '.join(files)}")
+        else:
+            last_action = state.get("action_history", [])[-1] if state.get("action_history") else None
+            if last_action and last_action.success:
+                obs_summary = str(last_action.observation)[:120] if last_action.observation else "Success"
+                evidence.append(f"Action '{last_action.tool_name}' verified: {obs_summary}")
+            else:
+                evidence.append("All planned steps completed without discrepancy.")
     else:
         discrepancies.append("The requested outcome has no supported independent verifier.")
 

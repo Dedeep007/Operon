@@ -12,10 +12,13 @@ class LLMProvider:
     def __init__(self):
         self._client = None
         key = settings.groq_api_key.strip()
-        if settings.environment != "simulation" and key and not key.startswith(("your_", "gsk_your_")):
-            from langchain_groq import ChatGroq
-            self._client = ChatGroq(model=settings.model_name, api_key=key,
-                                    temperature=settings.temperature, max_retries=2, timeout=30)
+        if key and not key.startswith(("your_", "gsk_your_")):
+            try:
+                from langchain_groq import ChatGroq
+                self._client = ChatGroq(model=settings.model_name, api_key=key,
+                                        temperature=settings.temperature, max_retries=2, timeout=30)
+            except Exception:
+                self._client = None
 
     @property
     def is_live(self):

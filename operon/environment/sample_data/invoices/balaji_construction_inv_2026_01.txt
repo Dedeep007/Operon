@@ -1,0 +1,35 @@
+================================================================================
+BALAJI CONSTRUCTION & INFRASTRUCTURE LTD
+Civil Engineering, Architectural Design & Commercial Construction
+Tax ID: TX-99381-BLJ | Email: billing@balajiconstruction.example.com
+Phone: +1 (555) 438-9921 | 1400 Metro Plaza Way, Suite 800
+================================================================================
+
+INVOICE
+
+Invoice Number : INV-BLJ-2026-001
+Invoice Date   : 2026-03-20
+Payment Due    : 2026-04-20
+Vendor / Issuer: Balaji Construction & Infrastructure Ltd
+
+Bill To:
+Internal Corporate Facilities Dept
+Enterprise Workspace Operations
+Acct Reference: FAC-BLJ-4821
+
+Line Item Description:
+--------------------------------------------------------------------------------
+1. Cyber Gateway Phase II - Structural Architectural Blueprint Drafting: $14,200.00
+2. Municipal Zoning Compliance Filing & Soil Permeability Testing:        $4,550.00
+3. MEP Engineering Schema Review & Seismic Dampener Certification:        $3,450.00
+--------------------------------------------------------------------------------
+SUBTOTAL:                                                                $22,200.00
+TAX (0.00% Commercial Exempt):                                               $0.00
+--------------------------------------------------------------------------------
+TOTAL AMOUNT DUE:                                                        $22,200.00
+Payment Terms: Net 30
+Currency: USD
+
+Payment Instructions:
+Wire payment to Balaji Construction Commercial Account. Reference INV-BLJ-2026-001.
+================================================================================

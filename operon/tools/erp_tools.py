@@ -99,13 +99,31 @@ def erp_register_vendor(
     **kwargs
 ) -> Dict[str, Any]:
     """Register a new vendor."""
+    import json
+    from operon.config import settings
     v_name = name or company_name or kwargs.get("vendor_name", "")
     t_id = tax_id or kwargs.get("tax_identification_number", "")
+    c_email = contact_email or kwargs.get("email") or kwargs.get("contact") or ""
+    
+    # If contact_email is missing, attempt to pull from local vendor profile
+    if not c_email and v_name:
+        for p in (settings.sample_data_dir / "vendors").glob("*.json"):
+            try:
+                prof = json.loads(p.read_text(encoding="utf-8"))
+                pname = prof.get("company_name") or prof.get("name", "")
+                if str(v_name).casefold() in pname.casefold() or pname.casefold() in str(v_name).casefold():
+                    c_email = prof.get("contact_email", "")
+                    if not t_id:
+                        t_id = prof.get("tax_id", "")
+                    break
+            except Exception:
+                pass
+
     return get_erp().register_vendor(
         name=str(v_name),
         tax_id=str(t_id),
         payment_terms=payment_terms,
-        contact_email=contact_email
+        contact_email=str(c_email)
     )
 
 @registry.register(

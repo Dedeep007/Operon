@@ -12,23 +12,41 @@ from operon.config import settings
 
 @registry.register(
     name="search_files",
-    description="Search for files in storage or sample directories matching a glob pattern (e.g. '*company_x*', '*invoice*')."
+    description="Search for files in storage or sample directories matching a glob pattern or keyword (e.g. '*company_x*', 'balaji', '*invoice*')."
 )
-def search_files(pattern: str, directory: Optional[str] = None) -> List[Dict[str, Any]]:
+def search_files(
+    pattern: Optional[str] = None,
+    query: Optional[str] = None,
+    directory: Optional[str] = None,
+    **kwargs
+) -> List[Dict[str, Any]]:
     """Search for files in a given directory or default sample directories."""
     base_dir = Path(directory) if directory else settings.sample_data_dir
     if not base_dir.exists():
         raise FileNotFoundError(f"Directory '{base_dir}' does not exist.")
         
+    search_term = str(pattern or query or kwargs.get("filename") or "*.*").strip()
+    patterns = [search_term]
+    if not search_term.startswith("*") and not search_term.endswith("*"):
+        patterns.append(f"*{search_term}*")
+    
+    tokens = [t for t in re.split(r"[\s_-]+", search_term.replace("*", "")) if len(t) > 2]
+    if len(tokens) > 1:
+        for t in tokens:
+            patterns.append(f"*{t}*")
+
     matches = []
-    for p in base_dir.rglob(pattern):
-        if p.is_file():
-            matches.append({
-                "path": str(p.resolve()),
-                "filename": p.name,
-                "size_bytes": p.stat().st_size,
-                "modified_time": p.stat().st_mtime
-            })
+    seen = set()
+    for pat in patterns:
+        for p in base_dir.rglob(pat):
+            if p.is_file() and str(p.resolve()) not in seen:
+                seen.add(str(p.resolve()))
+                matches.append({
+                    "path": str(p.resolve()),
+                    "filename": p.name,
+                    "size_bytes": p.stat().st_size,
+                    "modified_time": p.stat().st_mtime
+                })
     return matches
 
 @registry.register(
@@ -43,10 +61,10 @@ def read_document(file_path: Optional[str] = None, path: Optional[str] = None, *
         
     p = Path(target_path)
     if not p.exists():
-        # Try finding in sample_data_dir
-        candidate = settings.sample_data_dir / p.name
-        if candidate.exists():
-            p = candidate
+        # Try finding in sample_data_dir or its subdirectories
+        candidates = list(settings.sample_data_dir.rglob(p.name))
+        if candidates:
+            p = candidates[0]
         else:
             raise FileNotFoundError(f"Document at '{target_path}' not found.")
         
@@ -152,11 +170,13 @@ def extract_invoice_data(content: Optional[Any] = None, text: Optional[Any] = No
 def find_latest_invoice_file(
     company_name: Optional[str] = None,
     vendor_name: Optional[str] = None,
+    company: Optional[str] = None,
     query: Optional[str] = None,
-    directory: Optional[str] = None
+    directory: Optional[str] = None,
+    **kwargs
 ) -> Dict[str, Any]:
     """Find the chronologically latest invoice for a given company."""
-    target_company = company_name or vendor_name or query or "Company X"
+    target_company = company_name or vendor_name or company or query or kwargs.get("name") or "Company X"
     dir_path = Path(directory) if directory else settings.sample_data_dir / "invoices"
     if not dir_path.exists():
         raise FileNotFoundError(f"Invoices directory '{dir_path}' does not exist.")
@@ -214,17 +234,24 @@ def find_latest_invoice_file(
 
 
 @registry.register(name="read_vendor_profile", description="Find and read a local JSON vendor onboarding profile by company name.")
-def read_vendor_profile(company_name: str) -> Dict[str, Any]:
+def read_vendor_profile(
+    company_name: Optional[str] = None,
+    company: Optional[str] = None,
+    vendor_name: Optional[str] = None,
+    name: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    target = company_name or company or vendor_name or name or kwargs.get("query", "")
     for path in sorted((settings.sample_data_dir / "vendors").glob("*.json")):
         profile = json.loads(path.read_text(encoding="utf-8"))
-        name = profile.get("company_name") or profile.get("name", "")
-        if company_name.strip() and company_name.casefold() in name.casefold():
+        p_name = profile.get("company_name") or profile.get("name", "")
+        if target.strip() and target.casefold() in p_name.casefold():
             return {
-                "vendor_data": {"name": name, "tax_id": profile.get("tax_id"),
+                "vendor_data": {"name": p_name, "tax_id": profile.get("tax_id"),
                     "payment_terms": profile.get("payment_terms", "Net 30"), "contact_email": profile.get("contact_email", "")},
                 "file_path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             }
-    raise FileNotFoundError(f"No vendor profile found for '{company_name}'.")
+    raise FileNotFoundError(f"No vendor profile found for '{target}'.")
 
 @registry.register(
     name="write_file",

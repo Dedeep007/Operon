@@ -4,6 +4,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const examples = {
     company:
       "Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.",
+    balaji_blueprint:
+      "Find the blue print of balaji construction, inspect the architectural specifications, and verify the record.",
+    balaji_onboard:
+      "Read the vendor profile for Balaji Construction and register them into our internal ERP.",
     acme: "Find the latest invoice from Acme Logistics, enter it into our ERP, and verify the amount and due date.",
     globex:
       "Find the latest invoice from Globex Software, register it in accounting, and verify the ledger.",

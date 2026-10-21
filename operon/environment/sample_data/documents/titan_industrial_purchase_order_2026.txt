@@ -1,0 +1,18 @@
+================================================================================
+PURCHASE ORDER: PO-2026-TITAN-0482
+Buyer: Internal Corporate Procurement
+Vendor: Titan Industrial Supply Co. (Vendor ID: VND-006)
+Date: 2026-02-14
+Status: Approved & Issued
+================================================================================
+
+Itemized Order:
+1. Cat-6A Shielded Plenum Network Cable (1000ft Spool x 20):        $4,800.00
+2. Modular Server Rack Enclosures 42U with Dual PDU (Qty: 4):       $6,200.00
+3. Commercial Precision Climate Air Filter Units (Qty: 12):         $3,150.00
+--------------------------------------------------------------------------------
+TOTAL ORDER VALUE:                                                 $14,150.00
+Payment Terms: Net 30
+Delivery Location: Central Data Center Warehouse, Sector 4
+Contact: procurement-ops@company.internal
+================================================================================
