@@ -84,13 +84,13 @@ class Scratchpad(BaseModel):
         interpolated = {}
         for k, v in args.items():
             if isinstance(v, str) and "{{" in v and "}}" in v:
-                # Handle references like {{step_1_result.file_path}}
-                step_m = re.search(r"\{\{step_(\d+)_result\.([A-Za-z0-9_]+)\}\}", v)
-                if step_m:
-                    s_id = int(step_m.group(1))
-                    field = step_m.group(2)
+                val = None
+                # Pattern 1: {{step_1_result.field}} or {{step_1.field}}
+                m1 = re.search(r"\{\{step_(\d+)(?:_result)?\.([A-Za-z0-9_]+)\}\}", v)
+                if m1:
+                    s_id = int(m1.group(1))
+                    field = m1.group(2)
                     res = self.step_results.get(s_id) or self.step_results.get(str(s_id))
-                    val = None
                     if isinstance(res, dict):
                         val = res.get(field)
                         if val is None and field == "file_path":
@@ -99,16 +99,43 @@ class Scratchpad(BaseModel):
                             val = res.get("text") or res.get("content")
                     elif isinstance(res, str) and field == "content":
                         val = res
-                        
-                    # If not in step_results, check top-level entities
                     if val is None:
                         val = self.entities.get(field)
-                        
-                    interpolated[k] = val if val is not None else v
-                else:
-                    # Generic entity reference {{entity_name}}
+
+                # Pattern 2: {{field_from_step_1}}
+                if val is None:
+                    m2 = re.search(r"\{\{([A-Za-z0-9_]+)_from_step_(\d+)\}\}", v)
+                    if m2:
+                        field = m2.group(1)
+                        s_id = int(m2.group(2))
+                        res = self.step_results.get(s_id) or self.step_results.get(str(s_id))
+                        if isinstance(res, dict):
+                            val = res.get(field)
+                        if val is None:
+                            val = self.entities.get(field)
+
+                # Pattern 3: Generic reference e.g. {{vendor_id}}, {{scratchpad.amount}}
+                if val is None:
                     var_name = v.strip("{} ").replace("scratchpad.", "")
-                    interpolated[k] = self.get_entity(var_name, v)
+                    val = self.get_entity(var_name)
+                    if val is None:
+                        # Try stripping step indicator if present
+                        clean_var = re.sub(r"(_from)?_step_\d+", "", var_name)
+                        clean_var = re.sub(r"^step_\d+_", "", clean_var)
+                        val = self.get_entity(clean_var)
+
+                    if val is None:
+                        # Fuzzy search entities for substring match
+                        for ek, ev in self.entities.items():
+                            if ek.lower() in var_name.lower() or var_name.lower() in ek.lower():
+                                val = ev
+                                break
+
+                # Fallback to key itself if still unresolved but present in entities
+                if val is None and k in self.entities:
+                    val = self.entities[k]
+
+                interpolated[k] = val if val is not None else v
             elif v is None or v == "":
                 # Fallback to matching entity if present
                 if k in self.entities:
@@ -116,14 +143,16 @@ class Scratchpad(BaseModel):
                 else:
                     interpolated[k] = v
             else:
-                # Also check if value can be updated if entity was found (e.g. dynamic amount or vendor_id)
-                if k == "vendor_id" and "vendor_id" in self.entities and (not v or v == "VND-???"):
+                # Also check if placeholder-like string or missing vendor/amount
+                if str(v).startswith("{{") and k in self.entities:
+                    interpolated[k] = self.entities[k]
+                elif k == "vendor_id" and "vendor_id" in self.entities and (not v or v == "VND-???" or str(v).startswith("{{")):
                     interpolated[k] = self.entities["vendor_id"]
-                elif k == "amount" and "amount" in self.entities and (not v or v == 0.0):
+                elif k == "amount" and "amount" in self.entities and (not v or v == 0.0 or str(v).startswith("{{")):
                     interpolated[k] = self.entities["amount"]
-                elif k == "due_date" and "due_date" in self.entities and (not v or v == ""):
+                elif k == "due_date" and "due_date" in self.entities and (not v or v == "" or str(v).startswith("{{")):
                     interpolated[k] = self.entities["due_date"]
-                elif k == "invoice_number" and "invoice_number" in self.entities and (not v or v == ""):
+                elif k == "invoice_number" and "invoice_number" in self.entities and (not v or v == "" or str(v).startswith("{{")):
                     interpolated[k] = self.entities["invoice_number"]
                 else:
                     interpolated[k] = v

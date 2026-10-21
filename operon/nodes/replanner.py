@@ -77,12 +77,17 @@ def replanner_node(state: OperonState) -> Dict[str, Any]:
                 "status": "executing"
             }
 
-    # Strategy 3: Vendor not found -> try broader alias lookup
+    # Strategy 3: Vendor not found -> try broader alias lookup or resolve vendor_id
     if "VendorNotFoundError" in err_msg:
-        query = current_step.tool_args.get("query", "")
-        broad_query = query.split()[0] if query else "Company"
-        current_step.tool_args["query"] = broad_query
-        latest_error.recovery_strategy = f"Fuzzy matching query broadened to '{broad_query}'"
+        if current_step.tool_name == "erp_create_invoice":
+            known_vid = scratchpad.get_entity("vendor_id") or "VND-001"
+            current_step.tool_args["vendor_id"] = known_vid
+            latest_error.recovery_strategy = f"Resolved vendor_id to '{known_vid}' from working memory"
+        else:
+            query = current_step.tool_args.get("query", "")
+            broad_query = query.split()[0] if query else "Company"
+            current_step.tool_args["query"] = broad_query
+            latest_error.recovery_strategy = f"Fuzzy matching query broadened to '{broad_query}'"
         latest_error.resolved = True
         current_step.status = "pending"
         return {

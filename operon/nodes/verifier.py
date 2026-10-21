@@ -20,13 +20,41 @@ def verifier_node(state: OperonState) -> Dict[str, Any]:
     
     # Check 1: Invoice Task Verification
     if "invoice" in task:
+        import re
         inv_num = scratchpad.get_entity("invoice_number") or scratchpad.get_entity("created_invoice_number")
+        if not inv_num:
+            m = re.search(r"\b(INV-[A-Za-z0-9_-]+)\b", state["task"], re.IGNORECASE)
+            if m:
+                inv_num = m.group(1).upper()
+            else:
+                for step in state.get("plan", []):
+                    cand = step.tool_args.get("invoice_number")
+                    if cand and not str(cand).startswith("{{"):
+                        inv_num = str(cand).strip().upper()
+                        break
+
         expected_amt = scratchpad.get_entity("amount")
+        if expected_amt is None:
+            for step in state.get("plan", []):
+                cand_amt = step.tool_args.get("amount")
+                if cand_amt is not None and not str(cand_amt).startswith("{{"):
+                    try:
+                        expected_amt = float(re.sub(r"[^\d.]", "", str(cand_amt)))
+                        break
+                    except Exception:
+                        pass
+
         expected_due = scratchpad.get_entity("due_date")
-        
+        if not expected_due:
+            for step in state.get("plan", []):
+                cand_due = step.tool_args.get("due_date")
+                if cand_due and not str(cand_due).startswith("{{"):
+                    expected_due = str(cand_due).strip()
+                    break
+
         checks.append("Verify invoice presence in ERP system")
         if not inv_num:
-            discrepancies.append("No invoice number found in agent working memory.")
+            discrepancies.append("No invoice number found in agent working memory or task specification.")
         else:
             db_record = default_erp.get_invoice(inv_num)
             if not db_record:
