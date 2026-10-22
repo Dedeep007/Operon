@@ -1,7 +1,7 @@
 """End-to-End integration tests for Operon Autonomous AI Task Worker."""
 
 import pytest
-from operon.agent import OperonAgent
+from operon.agent import ApprovalRequired, OperonAgent
 from operon.environment.erp_system import default_erp
 
 def test_autonomous_invoice_processing_end_to_end():
@@ -28,10 +28,14 @@ def test_autonomous_invoice_processing_end_to_end():
     assert invoice_record["amount"] == 13446.00
 
 def test_autonomous_vendor_onboarding_generalization():
-    """Verify Operon generalizes to a completely different enterprise task."""
+    """Verify vendor onboarding generalizes while respecting restricted-data gates."""
     task = "Read the vendor profile for Apex Technologies and register them into our internal ERP system."
     agent = OperonAgent()
-    packet = agent.run(task)
+    with pytest.raises(ApprovalRequired):
+        agent.run(task)
+    with pytest.raises(ApprovalRequired):
+        agent.resume(True)
+    packet = agent.resume(True)
     
     assert packet is not None
     assert packet.status == "completed"

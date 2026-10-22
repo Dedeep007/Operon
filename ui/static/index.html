@@ -26,13 +26,18 @@
       <div class="nav-item"><span aria-hidden="true">↳</span> Conversation</div>
       <div class="sidebar-section">
         <h2>Recent tasks</h2>
-        <button
-          id="btn-refresh-history"
-          class="text-button"
-          aria-label="Refresh task history"
-        >
-          ↻
-        </button>
+        <div class="history-actions">
+          <button id="btn-clear-history" class="text-button history-clear" type="button">
+            Clear
+          </button>
+          <button
+            id="btn-refresh-history"
+            class="text-button"
+            aria-label="Refresh task history"
+          >
+            ↻
+          </button>
+        </div>
       </div>
       <nav id="run-history" class="run-history" aria-label="Task history">
         <p class="muted">No tasks yet.</p>
@@ -128,7 +133,16 @@
                 <div>
                   <p class="eyebrow">YOUR DECISION</p>
                   <h2 id="approval-title">This action needs approval</h2>
+                  <div class="approval-labels">
+                    <span id="approval-risk" class="approval-risk">Review</span>
+                    <span id="approval-classification" class="approval-classification"></span>
+                  </div>
                   <p id="approval-prompt"></p>
+                  <dl class="approval-context">
+                    <div><dt>Resource</dt><dd id="approval-resource">—</dd></div>
+                    <div><dt>Policy reason</dt><dd id="approval-reason">—</dd></div>
+                    <div><dt>Approval</dt><dd id="approval-scope">This exact action, once</dd></div>
+                  </dl>
                   <details open data-always-open>
                     <summary>Action details</summary>
                     <pre id="approval-args"></pre>
@@ -138,7 +152,7 @@
                   <button id="btn-reject" class="button button-secondary">
                     Decline & stop</button
                   ><button id="btn-approve" class="button button-primary">
-                    Approve this action
+                    Approve once
                   </button>
                 </div>
               </section>

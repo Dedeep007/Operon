@@ -18,6 +18,17 @@ def invoice_task(company):
     return f"Find the latest invoice from {company}, enter it into ERP, and verify."
 
 
+def run_approving(agent, task):
+    try:
+        return agent.run(task)
+    except ApprovalRequired:
+        while True:
+            try:
+                return agent.resume(True)
+            except ApprovalRequired:
+                continue
+
+
 @pytest.mark.parametrize("company,number,vendor,amount", [
     ("Company X", "INV-X-2026-003", "VND-001", 13446),
     ("Acme Logistics", "INV-ACM-2026-002", "VND-002", 14280.50),
@@ -36,7 +47,7 @@ def test_source_driven_invoice_workflows(company, number, vendor, amount):
 @pytest.mark.parametrize("company", ["Apex", "Quantum", "Horizon", "Cyberdyne"])
 def test_vendor_profiles_generalize(company):
     erp = ERPSystem()
-    packet = OperonAgent(erp=erp).run(f"Read the vendor profile for {company} and register them in ERP.")
+    packet = run_approving(OperonAgent(erp=erp), f"Read the vendor profile for {company} and register them in ERP.")
     assert packet.status == "completed"
     assert packet.created_records[0]["name"].startswith(company)
     assert "invoice" not in packet.summary.lower()
@@ -109,7 +120,7 @@ def test_repeated_task_is_idempotent_and_diff_is_per_run():
     first = OperonAgent(erp=erp).run(invoice_task("Company X"))
     before = erp.get_state_snapshot()
     second = OperonAgent(erp=erp).run(invoice_task("Company X"))
-    third = OperonAgent(erp=erp).run("Onboard the vendor Quantum into ERP")
+    third = run_approving(OperonAgent(erp=erp), "Onboard the vendor Quantum into ERP")
     assert first.state_diffs["total_new_invoices"] == 1
     assert second.status == "completed" and second.created_records == []
     assert erp.get_invoice("INV-X-2026-003") == before["invoices"]["INV-X-2026-003"]

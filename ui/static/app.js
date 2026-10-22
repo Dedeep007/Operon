@@ -73,6 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
     busy = false,
     lastMemory = null,
     lastPacket = null,
+    clearHistoryTimer = null,
     seen = new Set();
 
   function element(tag, className, text) {
@@ -109,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("btn-preview").disabled = value;
     $("btn-reset-erp").disabled = value;
     $("btn-new-chat").disabled = value;
+    $("btn-clear-history").disabled = value;
     $("task-input").disabled = waitingForReply;
     $("example-select").disabled = waitingForReply;
   }
@@ -334,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("chat-thread").focus({ preventScroll: true });
     updateChatScroll();
   });
-  $("btn-new-chat").addEventListener("click", () => {
+  function clearConversation() {
     if (busy || currentApproval) return;
     if (source) source.close();
     currentRun = null;
@@ -373,7 +375,8 @@ document.addEventListener("DOMContentLoaded", () => {
     renderTranscript(true);
     localStorage.removeItem("operon.lastRun");
     $("task-input").focus();
-  });
+  }
+  $("btn-new-chat").addEventListener("click", clearConversation);
   function renderWhiteboard(memory, packet, isWorking) {
     if (memory) lastMemory = memory;
     if (packet) lastPacket = packet;
@@ -661,6 +664,21 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (event.event === "approval_required") {
       currentApproval = event.approval;
       currentRun.status = "waiting_approval";
+      $("approval-title").textContent = currentApproval.data_classification
+        ? `Review ${currentApproval.data_classification.toLowerCase()} access`
+        : "This action needs approval";
+      $("approval-risk").textContent =
+        `${currentApproval.risk_level || "MEDIUM"} risk`;
+      $("approval-classification").textContent =
+        currentApproval.data_classification || "Protected action";
+      $("approval-resource").textContent =
+        currentApproval.resource || currentApproval.tool_name;
+      $("approval-reason").textContent =
+        currentApproval.reason || "This action falls outside the autonomous policy.";
+      $("approval-scope").textContent =
+        currentApproval.approval_scope === "all_modes"
+          ? "This exact access, once · applies to previews too"
+          : "This exact action, once";
       $("approval-prompt").textContent = currentApproval.prompt;
       $("approval-args").textContent = JSON.stringify(
         currentApproval.tool_args,
@@ -784,7 +802,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const hash = element(
         "small",
         "",
-        `SHA-256 · ${doc.sha256.slice(0, 20)}…`,
+        `${doc.data_classification ? doc.data_classification + " · " : ""}SHA-256 · ${doc.sha256.slice(0, 20)}…`,
       );
       hash.title = doc.sha256;
       row.append(hash);
@@ -824,8 +842,17 @@ document.addEventListener("DOMContentLoaded", () => {
     $("stat-actions").textContent = packet.total_actions_taken;
     $("stat-time").textContent = `${packet.execution_time_seconds}s`;
     $("stat-diff").textContent = packet.created_records.length;
-    $("policy-summary").textContent = packet.policy_checks.length
-      ? `${packet.policy_checks.length} action requiring approval${packet.mode === "preview" ? " on execution" : " reviewed"}`
+    const policyChecks = packet.policy_checks || [];
+    const approvedChecks = policyChecks.filter(
+      (check) => check.decision === "approved",
+    ).length;
+    const declinedChecks = policyChecks.filter(
+      (check) => check.decision === "declined",
+    ).length;
+    $("policy-summary").textContent = policyChecks.length
+      ? packet.mode === "preview"
+        ? `${policyChecks.length} protected action${policyChecks.length === 1 ? "" : "s"} identified${approvedChecks ? ` · ${approvedChecks} approved access` : ""}`
+        : `${policyChecks.length} protected action${policyChecks.length === 1 ? "" : "s"} reviewed · ${declinedChecks ? `${declinedChecks} declined` : `${approvedChecks} approved`}`
       : "Within approval policy";
     $("state-diff").textContent = JSON.stringify(packet.state_diffs, null, 2);
     $("evidence-digest").textContent =
@@ -889,7 +916,41 @@ document.addEventListener("DOMContentLoaded", () => {
       button.addEventListener("click", () => openRun(run.id));
       $("run-history").append(button);
     });
+    $("btn-clear-history").disabled = busy || !runs.length;
     return runs;
+  }
+
+  function resetClearHistoryButton() {
+    if (clearHistoryTimer) clearTimeout(clearHistoryTimer);
+    clearHistoryTimer = null;
+    $("btn-clear-history").textContent = "Clear";
+    $("btn-clear-history").classList.remove("confirming");
+  }
+
+  async function clearSavedHistory() {
+    const button = $("btn-clear-history");
+    if (busy || button.disabled) return;
+    if (!button.classList.contains("confirming")) {
+      button.textContent = "Confirm clear";
+      button.classList.add("confirming");
+      clearHistoryTimer = setTimeout(resetClearHistoryButton, 5000);
+      return;
+    }
+    resetClearHistoryButton();
+    button.disabled = true;
+    try {
+      const result = await api("/api/runs", { method: "DELETE" });
+      clearConversation();
+      await loadHistory();
+      notice(
+        result.deleted_runs
+          ? `Cleared ${result.deleted_runs} saved task${result.deleted_runs === 1 ? "" : "s"} and this conversation.`
+          : "There was no saved history to clear.",
+      );
+    } catch (error) {
+      notice(error.message);
+      button.disabled = false;
+    }
   }
   async function loadLedger() {
     try {
@@ -972,6 +1033,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btn-refresh-history").addEventListener("click", () =>
     loadHistory().catch((error) => notice(error.message)),
   );
+  $("btn-clear-history").addEventListener("click", clearSavedHistory);
   $("history-toggle").addEventListener("click", () => {
     const opened = document
       .querySelector(".sidebar")

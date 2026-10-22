@@ -32,6 +32,7 @@ class OperonAgent:
             "task": task.strip(), "plan": [], "current_step_index": 0, "scratchpad": {},
             "action_history": [], "errors": [], "retry_count": {}, "verification_result": None,
             "evidence_packet": None, "requires_approval": False, "approval_prompt": None,
+            "approval_context": None,
             "human_feedback": None, "status": "planning", "start_time": time.time(),
             "last_execution_result": None, "run_id": self.thread_id, "mode": self.mode,
             "baseline_snapshot": self.erp.get_state_snapshot(), "baseline_audit_count": len(self.erp.audit_log),

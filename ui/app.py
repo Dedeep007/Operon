@@ -17,6 +17,7 @@ from operon.runs import RunManager, RunBusyError, TERMINAL
 from operon.tools.registry import registry
 from operon.workflows import SUPPORTED_TOOLS
 from operon.conversation import chat_reply
+from operon.safety.data_policy import POLICY_VERSION, classify_resource
 
 
 @asynccontextmanager
@@ -76,7 +77,9 @@ def dashboard():
 def info():
     return {"model_name": llm_provider.model_name, "is_live_groq": llm_provider.is_live,
             "max_retries": settings.max_retries, "tools_count": len(SUPPORTED_TOOLS),
-            "approval_threshold": 25000, "environment": "Simulated company ERP"}
+            "approval_threshold": 25000, "environment": "Simulated company ERP",
+            "resource_policy": POLICY_VERSION,
+            "data_classifications": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]}
 
 
 @app.get("/api/tools")
@@ -129,6 +132,15 @@ def list_runs(request: Request, limit: int = Query(30, ge=1, le=100)):
     return manager(request).store.list(limit)
 
 
+@app.delete("/api/runs")
+def clear_runs(request: Request):
+    try:
+        deleted = manager(request).clear_history()
+        return {"deleted_runs": deleted}
+    except RunBusyError as exc:
+        raise HTTPException(409, str(exc))
+
+
 @app.get("/api/runs/{run_id}")
 def get_run(run_id: str, request: Request):
     return find_run(request, run_id)
@@ -161,6 +173,14 @@ def view_source(run_id: str, source_index: int, request: Request):
     path = Path(source["file_path"]).resolve()
     if not path.is_relative_to(settings.sample_data_dir.resolve()):
         raise HTTPException(403, "Only company sandbox sources can be opened here.")
+    classification = classify_resource(path)
+    if classification.requires_approval and settings.require_human_approval:
+        approved = any(
+            check.get("policy_id") == classification.policy_id and check.get("decision") == "approved"
+            for check in packet.get("policy_checks", [])
+        )
+        if not approved:
+            raise HTTPException(403, "This restricted source does not have a recorded approval for access.")
     try:
         content = path.read_bytes()
     except OSError:

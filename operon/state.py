@@ -85,6 +85,7 @@ class OperonState(TypedDict):
     evidence_packet: Optional[EvidencePacket]
     requires_approval: bool
     approval_prompt: Optional[str]
+    approval_context: Optional[Dict[str, Any]]
     human_feedback: Optional[str]
     status: Literal["planning", "executing", "waiting_approval", "replanning", "verifying", "completed", "partially_completed", "failed"]
     start_time: float

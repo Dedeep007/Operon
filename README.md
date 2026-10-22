@@ -48,10 +48,11 @@ uvicorn ui.app:app --host 127.0.0.1 --port 8000
 Open [localhost:8000](http://localhost:8000). Windows users can also run `run_dashboard.bat`.
 
 - **Send** starts a conversation: greet Operon, give it a task, or ask about the last result. Enter sends; Shift+Enter adds a line.
-- **Preview task** runs the workflow against an independent ledger copy. Proposed records, balance changes, verification, and approval requirements appear in its report. After a verified preview, send **run it** to execute the same goal.
+- **Preview task** runs the workflow against an independent ledger copy. Proposed records, balance changes, verification, and approval requirements appear in its report. Restricted file access still pauses for approval because copying the ledger does not make sensitive data less sensitive. After a verified preview, send **run it** to execute the same goal.
 - Ask follow-ups such as **How much was it?**, **When is it due?**, or **How did you verify it?** Answers use the saved report without running the task again.
-- High-value entries over $25,000 pause for approval when approval checks are enabled. Review the action and use its decision buttons, or send **approve** or **decline** in the conversation.
+- High-value entries over $25,000, restricted vendor-profile reads, vendor registration, persistent file writes, form submissions, mutating API calls, and API calls carrying credentials pause for approval. The review identifies the resource, classification, reason, and scope; secrets and full identifiers are redacted. Each decision applies only to the exact action fingerprint.
 - The transcript scrolls independently and retains the latest 100 messages in this browser. **New conversation** clears the conversation context while keeping the company ledger and saved task history.
+- **Clear** beside Recent tasks requires a second confirmation, deletes saved task reports and events, and starts a fresh conversation. It is disabled while work or an approval is active and does not reset the company ledger.
 - Activity, action arguments, verification, report evidence, and the vendor directory stay expanded, so the worker’s decisions and checks remain visible without extra clicks.
 - Recent tasks replay saved activity. **Download evidence** exports the source hashes, tool calls, verification, changes, errors, and report digest.
 - **Source files** in the scratchpad open the captured sandbox documents. The server checks their hashes first and refuses to serve a source that changed after the task.
@@ -66,7 +67,7 @@ python cli.py "Find the latest invoice from Globex Software and register it in E
 python cli.py --preview --output storage/evidence.json "Find the latest invoice from OmniCorp and enter it into ERP, then verify."
 ```
 
-The installed `operon` command uses the same CLI. It streams progress and prompts for approval before a gated action. Preview bypasses the approval pause inside its isolated copy and records the policy requirement.
+The installed `operon` command uses the same CLI. It streams progress and prompts for approval before a gated action. A preview bypasses approvals that protect real writes, but restricted reads still pause because they expose the same data in either mode.
 
 ## Supported examples
 
@@ -98,7 +99,7 @@ Goal → Planner → Executor → Observer → Verifier → Evidence
               Approval checkpoint
 ```
 
-The planner generates a validated list of tool calls. The executor resolves values discovered by earlier steps, evaluates approval policy, and runs each tool. The observer stores facts and detects failures. Recovery is bounded; a permanent failure stops dependent actions. The verifier independently reads the ERP and compares it with the captured source fields and document hashes.
+The planner generates a validated list of tool calls. The executor resolves values discovered by earlier steps, classifies the resource and proposed action, evaluates approval policy, and runs each tool. Vendor profiles are restricted; invoices, deals, quotations, and blueprints are confidential; other sandbox documents default to internal. File reads and searches are confined to company sample data and run storage. The observer stores facts and detects failures. Recovery is bounded; a permanent failure stops dependent actions. The verifier independently reads the ERP and compares it with the captured source fields and document hashes.
 
 LangGraph separates these responsibilities and checkpoints approval pauses. A single dashboard worker keeps shared ledger changes attributable to one run. SQLite stores reports and incremental events; reconnecting a stream reads those events instead of submitting the task again.
 
@@ -113,7 +114,7 @@ python demo/run_vendor_onboard.py
 python demo/run_error_recovery.py
 ```
 
-The suite has 108 passing tests covering the original workflows, independent verification, source selection, recovery, approval scope, preview isolation, duplicate handling, API validation, saved-event replay, restart handling, conversational follow-ups, linked quotations, company search, missing resources, corrected-source retries, and hash-checked source access. Tests force offline planning and reset shared fixtures; they never call Groq.
+The suite covers the original workflows, independent verification, source selection, recovery, sensitive-resource classification, exact-action approval scope, preview isolation, argument redaction, file confinement, history clearing, duplicate handling, API validation, saved-event replay, restart handling, conversational follow-ups, linked quotations, company search, missing resources, corrected-source retries, and hash-checked source access. Tests force offline planning and reset shared fixtures; they never call Groq.
 
 The recovery demo creates a temporary malformed JSON invoice. Its prose-formatted date fails ERP validation, is normalized, retries successfully, and is checked against the source. The original sample files are unchanged.
 
@@ -133,6 +134,7 @@ A short demo recording can follow this sequence:
 - Conversation routing handles task requests, simple greetings, explicit preview execution, approval decisions, and common questions about the latest task. It is a bounded task conversation; arbitrary discussion and editing a paused plan through clarification are future work. The browser-local transcript is separate from saved SQLite task reports.
 - Deal and quotation tools read local JSON sources; they do not connect to a real CRM or send quotations. Signing dates use day precision. Company-record search covers text/JSON/Markdown/CSV sources and ERP snapshots; it is keyword search, not semantic retrieval. Unreadable or oversized text files make the search incomplete.
 - Approval checkpoints live in the current process. A restart marks unfinished runs as interrupted and clears their pending decisions. Review the ledger before starting another task; automatic restart recovery is a future improvement.
+- Data labels are deterministic sandbox policy rules based on resource location, action type, and conservative filename hints. They demonstrate enforcement and auditability; a production system would obtain authoritative labels from a document service, DLP catalogue, or access-control system.
 - One task runs at a time in the dashboard. Separate CLI processes use separate in-memory ERP instances.
 - The local dashboard has no authentication and is intended to bind to localhost. Multi-user hosting, external accounting connectors, payments, and unrestricted desktop automation are outside this prototype.
 - The offline planner recognizes the bounded workflows and known companies; the optional Groq planner provides model-based decomposition over the same restricted tool set. Live Groq calls were not part of the automated validation.

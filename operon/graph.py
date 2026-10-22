@@ -10,6 +10,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.types import interrupt
 from operon.safety.approval import action_fingerprint
+from operon.safety.data_policy import redact_action_args
 
 from operon.state import OperonState
 from operon.nodes.planner import planner_node
@@ -50,22 +51,33 @@ def human_gate_node(state: OperonState) -> Dict[str, Any]:
     """Human-in-the-loop approval checkpoint node."""
     step = state["plan"][state["current_step_index"]]
     fingerprint = action_fingerprint(step.step_id, step.tool_name, step.tool_args)
-    decision = interrupt({
+    context = state.get("approval_context") or {}
+    approval = {
         "approval_id": fingerprint,
         "prompt": state.get("approval_prompt", "Approval requested."),
         "step_id": step.step_id,
         "tool_name": step.tool_name,
-        "tool_args": step.tool_args,
-    })
+        "tool_args": redact_action_args(step.tool_args),
+        "one_time": True,
+        **{key: value for key, value in context.items() if key not in {"requires_approval", "approval_prompt"}},
+    }
+    decision = interrupt(approval)
     plan = list(state["plan"])
+    policy_checks = list(state.get("policy_checks", []))
+    for check in policy_checks:
+        if check.get("action_fingerprint") == fingerprint:
+            check["decision"] = "approved" if decision is True else "declined"
     if decision is not True:
         for remaining in plan[state["current_step_index"]:]:
             remaining.status = "skipped"
     return {
         "plan": plan,
         "requires_approval": False,
+        "approval_prompt": None,
+        "approval_context": None,
         "approved_action": fingerprint if decision is True else None,
         "approval_rejected": decision is not True,
+        "policy_checks": policy_checks,
         "status": "executing" if decision is True else "verifying"
     }
 

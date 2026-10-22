@@ -170,6 +170,18 @@ ol {
   letter-spacing: 1.2px;
   color: var(--muted);
 }
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.history-clear {
+  color: #8a4c3b;
+}
+.history-clear.confirming {
+  color: var(--red);
+  font-weight: 650;
+}
 .text-button {
   background: none;
   border: 0;
@@ -410,6 +422,46 @@ textarea::placeholder {
 .approval-panel p:not(.eyebrow) {
   font-size: 12px;
   max-width: 800px;
+}
+.approval-labels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.approval-risk,
+.approval-classification {
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.approval-risk {
+  color: #7d3d28;
+  font-weight: 700;
+}
+.approval-classification {
+  padding-left: 8px;
+  border-left: 1px solid #d8c49d;
+  color: var(--muted);
+}
+.approval-context {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.approval-context > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 11px;
+}
+.approval-context dt {
+  color: var(--muted);
+}
+.approval-context dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 .approval-panel pre {
   background: #fff9ee;
@@ -1174,6 +1226,10 @@ th.amount {
     display: block;
     max-height: 240px;
     margin-top: 10px;
+  }
+  .sidebar.history-open .sidebar-section {
+    display: flex;
+    margin: 14px 0 0;
   }
   .sidebar {
     position: relative;

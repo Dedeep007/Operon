@@ -30,19 +30,21 @@ flowchart TD
 
 `planner.py` validates step shape, order, tool membership, and a 12-step limit. Model JSON that cannot form a supported plan falls back to `workflows.py`, which derives its plan from the user's task and available company data. Unsupported goals receive a clarification error and proceed to a failed verification report.
 
-The planner exposes local document tools and supported ERP tools. Legacy browser simulations, arbitrary API requests, file writes, and deletion are excluded from planning. Preview applies an additional allowlist before dispatch, so non-sandbox tools cannot write files or call external services through that execution path. Preview is ERP isolation, not an operating-system sandbox.
+The planner exposes local document tools and supported ERP tools. Legacy browser simulations, arbitrary API requests, file writes, and deletion are excluded from planning. Preview applies an additional allowlist before dispatch, so non-sandbox tools cannot write files or call external services through that execution path. File tools independently confine reads to company sample data and run storage, and writes to run storage or the operating-system temporary directory.
 
 The observer preserves source expectations separately from mutable entities. An invoice creation response cannot overwrite the source amount used by the independent audit. Vendor profiles similarly retain name, tax ID, terms, and contact details.
 
 ## Approval lifecycle
 
-Policy checks happen after argument interpolation. Monetary parsing is shared with execution so a formatted amount such as `$48,500.00` receives the same threshold check as `48500`.
+Policy checks happen after argument interpolation, when the executor knows the actual resource and values. `data_policy.py` assigns `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, or `RESTRICTED` using explicit directory rules, action semantics, and conservative filename hints. Vendor profiles are restricted because they contain tax identifiers and contact details. Invoice, deal, quotation, and blueprint sources are confidential. The classification, categories, policy ID, and decision are retained in evidence. Source records also carry their classification.
 
-The gate uses LangGraph's [documented interrupt/resume mechanism](https://docs.langchain.com/oss/python/langgraph/interrupts). It exposes the resolved action and pauses. Approval is tied to a SHA-256 fingerprint of the step ID, tool, and arguments. A decision authorizes only that exact invocation; a later action is evaluated again. Declining routes to verification without executing the pending operation.
+Restricted reads require approval in previews and executions because preview isolation protects ledger writes, not information access. Real vendor registration, persistent file writes, form submissions, mutating API calls, and financial entries above $25,000 require execution approval. API calls with credential-bearing headers require approval in every mode. Approval-display arguments redact secrets, bodies, full tax identifiers, and email local parts; the graph retains the original values internally for execution and fingerprinting.
+
+The gate uses LangGraph's [documented interrupt/resume mechanism](https://docs.langchain.com/oss/python/langgraph/interrupts). It exposes the resolved action and pauses. Approval is tied to a SHA-256 fingerprint of the policy version, step ID, tool, and original arguments. A decision authorizes only that exact invocation; a later action is evaluated again. The evidence records `approved`, `declined`, or `would_require_on_execution`. Declining routes to verification without executing the pending operation.
 
 The dashboard validates the pending run, fingerprint, and strict boolean decision. Stale and duplicate decisions are rejected. CLI decisions use the same graph; EOF declines the operation.
 
-Preview executes the gated action only inside its copy, recording that approval would be required for an actual run.
+Preview executes write-gated actions only inside its copy and records that execution approval would be required. It still interrupts before restricted data access.
 
 ## Recovery and verification
 
@@ -67,6 +69,7 @@ The summarizer determines `completed`, `partially_completed`, or `failed` from v
 | `POST /api/chat` | Reply to a task follow-up, start a goal, or decide the context run's pending approval |
 | `POST /api/runs` | Validate a goal and start one task; returns a run ID |
 | `GET /api/runs` | Recent run metadata |
+| `DELETE /api/runs` | Clear saved reports and events when no task is active |
 | `GET /api/runs/{id}` | Status, pending approval, and final report |
 | `GET /api/runs/{id}/events` | Stream incremental saved events; resume from `Last-Event-ID` |
 | `POST /api/runs/{id}/approval` | Approve or decline the pending exact action |
@@ -80,7 +83,7 @@ SSE only observes a previously created run. It never creates work on a reconnect
 
 `operon/conversation.py` routes simple conversational messages before task execution. Greetings need no tools. Supported follow-up questions read the context run's saved evidence packet rather than the current ledger or a new model response. A request to execute a preview requires a verified preview and resubmits its original goal through the existing run manager. Chat approval uses the pending action's existing fingerprint; preview messages cannot authorize an actual run. New goals still use the existing planner and graph.
 
-Reports and events persist under `storage/`; ERP records and graph checkpoints remain in memory. At startup, unfinished saved runs become `interrupted`, with an explanation that their checkpoints cannot resume. Completed reports remain readable.
+Reports and events persist under `storage/`; ERP records and graph checkpoints remain in memory. At startup, unfinished saved runs become `interrupted`, with an explanation that their checkpoints cannot resume. Completed reports remain readable until the user deliberately clears history. Deletion is blocked while a task or approval is active and does not reset the ERP.
 
 ## Evidence format
 
@@ -92,7 +95,7 @@ The digest is SHA-256 over UTF-8 JSON with sorted keys, compact separators, `ens
 
 The dashboard prioritizes the user's goal, activity, decision requests, verification, and ledger. It uses neutral paper colors, restrained green accents, system fonts, and a simple sidebar. Technical details stay expanded so plans, action arguments, verification, evidence, and vendor records remain inspectable throughout a demo. Failed and preview outcomes have distinct labels. Dynamic document content uses text nodes instead of HTML interpolation. History remains accessible on a narrow screen through the Recent tasks toggle.
 
-The conversation is the primary input surface. Its transcript has independent scrolling, a persistent composer, and a latest-message shortcut. Operon replies use a restrained response surface, while the scratchpad gives the checked outcome its own success or failure emphasis. Detailed activity and verification stay visible below. The latest 100 conversation messages and context run ID persist in browser local storage, while SQLite remains the source for run reports and events. Starting a new conversation does not reset the ERP.
+The conversation is the primary input surface. Its transcript has independent scrolling, a persistent composer, and a latest-message shortcut. Operon replies use a restrained response surface, while the scratchpad gives the checked outcome its own success or failure emphasis. Detailed activity and verification stay visible below. The latest 100 conversation messages and context run ID persist in browser local storage, while SQLite remains the source for run reports and events. **New conversation** clears browser context only; the confirmed **Clear history** action removes saved runs and the current conversation. Neither action resets the ERP.
 
 ## Validation and future work
 

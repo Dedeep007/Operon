@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import re
 from pydantic import BaseModel, Field
+from operon.safety.data_policy import classify_resource
 
 class Scratchpad(BaseModel):
     """Working memory tracking information discovered during agent execution."""
@@ -30,6 +31,27 @@ class Scratchpad(BaseModel):
     def get_entity(self, key: str, default: Any = None) -> Any:
         """Retrieve an entity from working memory."""
         return self.entities.get(key, default)
+
+    def add_source_document(self, document: Dict[str, Any]):
+        """Capture a source hash together with its policy classification."""
+        if not document.get("file_path") or not document.get("sha256"):
+            return
+        captured = dict(document)
+        try:
+            classification = classify_resource(captured["file_path"])
+            captured.update({
+                "data_classification": classification.data_classification,
+                "data_categories": classification.data_categories,
+                "policy_id": classification.policy_id,
+            })
+        except (OSError, ValueError):
+            pass
+        if not any(
+            existing.get("file_path") == captured["file_path"]
+            and existing.get("sha256") == captured["sha256"]
+            for existing in self.source_documents
+        ):
+            self.source_documents.append(captured)
 
     def update_from_observation(self, tool_name: str, data: Any, step_id: Optional[int] = None):
         """Intelligently inspect tool output and store relevant facts."""
@@ -63,8 +85,7 @@ class Scratchpad(BaseModel):
             return
 
         for document in data.get("source_documents", []):
-            if document not in self.source_documents:
-                self.source_documents.append(document)
+            self.add_source_document(document)
         if "deal_record" in data:
             deal = data["deal_record"]
             self.extracted_data["deal_record"] = dict(deal)
@@ -92,14 +113,12 @@ class Scratchpad(BaseModel):
             for match in data["matches"]:
                 if match.get("file_path"):
                     document = {"file_path": match["file_path"], "sha256": match["sha256"]}
-                    if document not in self.source_documents:
-                        self.source_documents.append(document)
+                    self.add_source_document(document)
             self.add_note(f"Searched company document contents, ledger invoices, and vendors for '{data['query']}': {data['total_matches']} match(es).")
 
         if data.get("file_path") and data.get("sha256"):
             document = {"file_path": data["file_path"], "sha256": data["sha256"]}
-            if document not in self.source_documents:
-                self.source_documents.append(document)
+            self.add_source_document(document)
             self.record_entity("file_path", data["file_path"])
             f_name = Path(data["file_path"]).name
             self.add_note(f"Verified source document '{f_name}' (SHA-256: {data['sha256'][:12]}...).")

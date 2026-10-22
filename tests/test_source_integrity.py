@@ -14,14 +14,16 @@ def write_invoice(path, company, number, issued):
         "invoice_date": issued, "amount": 500, "due_date": "2026-12-01"}), encoding="utf-8")
 
 
-def test_company_x_does_not_match_company_y(tmp_path):
+def test_company_x_does_not_match_company_y(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sample_data_dir", tmp_path)
     write_invoice(tmp_path / "company_x.json", "Company X Solutions", "INV-X-1", "2026-02-01")
     write_invoice(tmp_path / "company_y.json", "Company Y Solutions", "INV-Y-2", "2026-10-01")
     result = find_latest_invoice_file("Company X", directory=str(tmp_path))
     assert result["invoice_data"]["invoice_number"] == "INV-X-1"
 
 
-def test_latest_uses_all_matching_source_dates_not_filename_priority(tmp_path):
+def test_latest_uses_all_matching_source_dates_not_filename_priority(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sample_data_dir", tmp_path)
     write_invoice(tmp_path / "company_x.json", "Company X Solutions", "INV-X-1", "2026-02-01")
     write_invoice(tmp_path / "unrelated_filename.json", "Company X Solutions", "INV-X-2", "2026-10-01")
     assert find_latest_invoice_file("Company X", directory=str(tmp_path))["invoice_data"]["invoice_number"] == "INV-X-2"

@@ -1,16 +1,17 @@
 """Human-in-the-Loop and Safety Approvals for Operon."""
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from operon.config import settings
 from operon.validation import parse_amount
 from operon.tools.registry import registry
+from operon.safety.data_policy import POLICY_VERSION, classify_action
 import hashlib
 import json
 
 
 def action_fingerprint(step_id, tool_name, args):
-    return hashlib.sha256(json.dumps([step_id, tool_name, args], sort_keys=True).encode()).hexdigest()
+    return hashlib.sha256(json.dumps([POLICY_VERSION, step_id, tool_name, args], sort_keys=True).encode()).hexdigest()
 
 class SafetyAssessment(BaseModel):
     """Result of evaluating a proposed action against safety boundaries."""
@@ -18,6 +19,11 @@ class SafetyAssessment(BaseModel):
     risk_level: str = "LOW"  # LOW, MEDIUM, HIGH, CRITICAL
     reason: Optional[str] = None
     approval_prompt: Optional[str] = None
+    policy_id: str = f"{POLICY_VERSION}:autonomous"
+    approval_scope: Literal["execution", "all_modes"] = "execution"
+    resource: Optional[str] = None
+    data_classification: Optional[str] = None
+    data_categories: list[str] = Field(default_factory=list)
 
 class SafetyController:
     """Monitors planned actions and enforces guardrails & human approvals."""
@@ -38,10 +44,30 @@ class SafetyController:
                 requires_approval=True,
                 risk_level="HIGH",
                 reason=f"Action '{tool_name}' performs destructive modifications to enterprise records.",
-                approval_prompt=f"SAFETY INTERRUPT: The agent wants to execute high-risk action '{tool_name}' with arguments {args}. Do you approve this operation? (approve / reject / edit)"
+                approval_prompt=f"Operon wants to run the high-risk action '{tool_name}'. Review the exact arguments below before approving it once.",
+                policy_id=f"{POLICY_VERSION}:high-risk-tool",
             )
 
-        # 2. Financial threshold check
+        # 2. Data classification and transmission policy
+        resource = classify_action(tool_name, args)
+        if resource and resource.requires_approval:
+            categories = ", ".join(resource.data_categories)
+            return SafetyAssessment(
+                requires_approval=True,
+                risk_level="HIGH" if resource.data_classification == "RESTRICTED" else "MEDIUM",
+                reason=resource.reason,
+                approval_prompt=(
+                    f"Operon wants to access {resource.data_classification.lower()} data in "
+                    f"{resource.resource}. This may involve {categories}. Approve this exact action once?"
+                ),
+                policy_id=resource.policy_id,
+                approval_scope=resource.approval_scope,
+                resource=resource.resource,
+                data_classification=resource.data_classification,
+                data_categories=resource.data_categories,
+            )
+
+        # 3. Financial threshold check
         amount = args.get("amount")
         if amount is not None:
             try:
@@ -51,7 +77,11 @@ class SafetyController:
                         requires_approval=True,
                         risk_level="MEDIUM",
                         reason=f"Transaction amount ${val:,.2f} exceeds financial autonomous threshold of ${self.financial_approval_threshold:,.2f}.",
-                        approval_prompt=f"FINANCIAL APPROVAL REQUIRED: An invoice entry of ${val:,.2f} exceeds policy limit. Proceed with registration? (approve / reject)"
+                        approval_prompt=f"This invoice entry is ${val:,.2f}, above the ${self.financial_approval_threshold:,.2f} autonomous limit. Approve this exact registration once?",
+                        policy_id=f"{POLICY_VERSION}:financial-threshold",
+                        resource="Company ledger invoice entry",
+                        data_classification="CONFIDENTIAL",
+                        data_categories=["financial record"],
                     )
             except Exception:
                 pass

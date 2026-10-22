@@ -62,6 +62,7 @@ def test_approval_api_busy_reset_stale_and_decline(client):
     run = wait_run(client, run_id, {"waiting_approval"})
     assert client.post("/api/runs", json={"task": TASK}).status_code == 409
     assert client.post("/api/erp/reset").status_code == 409
+    assert client.delete("/api/runs").status_code == 409
     assert client.post(f"/api/runs/{run_id}/approval", json={"approval_id": "stale", "approved": True}).status_code == 409
     assert client.post(f"/api/runs/{run_id}/approval", json={"approval_id": run["approval"]["approval_id"], "approved": "yes"}).status_code == 422
     assert default_erp.get_invoice("INV-OMNI-2026-001") is None
@@ -132,3 +133,39 @@ def test_invalid_task_requests(client, body):
 def test_missing_runs_return_404(client):
     assert client.get("/api/runs/missing").status_code == 404
     assert client.get("/api/runs/missing/evidence").status_code == 404
+
+
+def test_saved_history_can_be_cleared_when_idle(client):
+    run_id = client.post("/api/runs", json={"task": TASK}).json()["id"]
+    wait_run(client, run_id)
+    assert client.get("/api/runs").json()
+    cleared = client.delete("/api/runs")
+    assert cleared.status_code == 200
+    assert cleared.json() == {"deleted_runs": 1}
+    assert client.get("/api/runs").json() == []
+    assert client.get(f"/api/runs/{run_id}").status_code == 404
+
+
+def test_restricted_source_approval_is_explained_and_recorded(client):
+    task = "Read the vendor profile for Apex and register them in ERP."
+    run_id = client.post("/api/runs", json={"task": task}).json()["id"]
+    first = wait_run(client, run_id, {"waiting_approval"})
+    approval = first["approval"]
+    assert approval["data_classification"] == "RESTRICTED"
+    assert approval["approval_scope"] == "all_modes"
+    assert approval["resource"].startswith("Vendor profile")
+    client.post(
+        f"/api/runs/{run_id}/approval",
+        json={"approval_id": approval["approval_id"], "approved": True},
+    )
+    second = wait_run(client, run_id, {"waiting_approval"})
+    assert second["approval"]["tool_name"] == "erp_register_vendor"
+    assert "***" in second["approval"]["tool_args"]["tax_id"]
+    client.post(
+        f"/api/runs/{run_id}/approval",
+        json={"approval_id": second["approval"]["approval_id"], "approved": True},
+    )
+    completed = wait_run(client, run_id)
+    checks = completed["packet"]["policy_checks"]
+    assert [check["decision"] for check in checks] == ["approved", "approved"]
+    assert client.get(f"/api/runs/{run_id}/sources/0").status_code == 200

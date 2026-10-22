@@ -9,6 +9,35 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from operon.tools.registry import registry
 from operon.config import settings
+from operon.safety.data_policy import enforce_resource_scope
+
+
+def _search_root(directory: Optional[str], default: Path) -> Path:
+    root = Path(directory) if directory else default
+    if not root.is_absolute():
+        root = settings.sample_data_dir / root
+    return enforce_resource_scope(root, operation="read")
+
+
+def _resolve_read_target(target_path: str) -> Path:
+    """Resolve a user/tool path only inside company sample data or run storage."""
+    raw = Path(target_path)
+    if raw.is_absolute():
+        candidate = enforce_resource_scope(raw, operation="read")
+        if candidate.exists():
+            return candidate
+        raise FileNotFoundError(f"Document at '{target_path}' not found.")
+
+    direct = (settings.sample_data_dir / raw).resolve()
+    if direct.exists():
+        return enforce_resource_scope(direct, operation="read")
+    stored = (settings.storage_dir / raw).resolve()
+    if stored.exists():
+        return enforce_resource_scope(stored, operation="read")
+    candidates = sorted(settings.sample_data_dir.rglob(raw.name))
+    if candidates:
+        return enforce_resource_scope(candidates[0], operation="read")
+    raise FileNotFoundError(f"Document at '{target_path}' not found in the company sandbox.")
 
 @registry.register(
     name="search_files",
@@ -21,7 +50,7 @@ def search_files(
     **kwargs
 ) -> List[Dict[str, Any]]:
     """Search for files in a given directory or default sample directories."""
-    base_dir = Path(directory) if directory else settings.sample_data_dir
+    base_dir = _search_root(directory, settings.sample_data_dir)
     if not base_dir.exists():
         raise FileNotFoundError(f"Directory '{base_dir}' does not exist.")
         
@@ -59,14 +88,7 @@ def read_document(file_path: Optional[str] = None, path: Optional[str] = None, *
     if not target_path or "{{" in str(target_path):
         raise ValueError("MissingContextError: A resolved document path is required.")
         
-    p = Path(target_path)
-    if not p.exists():
-        # Try finding in sample_data_dir or its subdirectories
-        candidates = list(settings.sample_data_dir.rglob(p.name))
-        if candidates:
-            p = candidates[0]
-        else:
-            raise FileNotFoundError(f"Document at '{target_path}' not found.")
+    p = _resolve_read_target(str(target_path))
         
     suffix = p.suffix.lower()
     if suffix in [".txt", ".json", ".csv", ".md"]:
@@ -177,7 +199,7 @@ def find_latest_invoice_file(
 ) -> Dict[str, Any]:
     """Find the chronologically latest invoice for a given company."""
     target_company = company_name or vendor_name or company or query or kwargs.get("name") or "Company X"
-    dir_path = Path(directory) if directory else settings.sample_data_dir / "invoices"
+    dir_path = _search_root(directory, settings.sample_data_dir / "invoices")
     if not dir_path.exists():
         raise FileNotFoundError(f"Invoices directory '{dir_path}' does not exist.")
         
@@ -266,6 +288,9 @@ def write_file(file_path: Optional[str] = None, destination: Optional[str] = Non
         p = Path(tempfile.gettempdir()) / filename
     else:
         p = Path(target)
+        if not p.is_absolute():
+            p = settings.storage_dir / p
+    p = enforce_resource_scope(p, operation="write")
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         f.write(content)

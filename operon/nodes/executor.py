@@ -41,15 +41,23 @@ def executor_node(state: OperonState) -> Dict[str, Any]:
     assessment = safety_controller.evaluate_step(current_step.tool_name, resolved_args)
     policy_checks = list(state.get("policy_checks", []))
     if assessment.requires_approval:
-        check = {"step_id": current_step.step_id, "tool_name": current_step.tool_name, **assessment.model_dump()}
-        if check not in policy_checks:
+        must_pause = state.get("mode") != "preview" or assessment.approval_scope == "all_modes"
+        check = {
+            "step_id": current_step.step_id,
+            "tool_name": current_step.tool_name,
+            "action_fingerprint": fingerprint,
+            "decision": "approval_required" if must_pause else "would_require_on_execution",
+            **assessment.model_dump(),
+        }
+        if not any(item.get("action_fingerprint") == fingerprint for item in policy_checks):
             policy_checks.append(check)
-        if state.get("mode") != "preview" and state.get("approved_action") != fingerprint:
+        if must_pause and state.get("approved_action") != fingerprint:
             return {
                 "plan": plan,
                 "policy_checks": policy_checks,
                 "requires_approval": True,
                 "approval_prompt": assessment.approval_prompt,
+                "approval_context": assessment.model_dump(),
                 "status": "waiting_approval"
             }
             
@@ -83,6 +91,8 @@ def executor_node(state: OperonState) -> Dict[str, Any]:
         "plan": plan,
         "action_history": action_history,
         "requires_approval": False,
+        "approval_prompt": None,
+        "approval_context": None,
         "human_feedback": None,
         "approved_action": None,
         "policy_checks": policy_checks,

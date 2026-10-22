@@ -292,3 +292,45 @@ Validation: **108 tests passed**. JavaScript syntax and Git whitespace checks pa
 ![Highlighted Operon response in the conversation](docs/ui-friendly-open-evidence.png)
 
 ![Highlighted scratchpad outcome with expanded activity](docs/ui-highlighted-outcome.png)
+
+## 22 October 2026 — Data-aware approvals and clearable history
+
+Extended the exact-action approval gate into a resource-aware policy system and added deliberate cleanup for saved tasks and conversations.
+
+### Sensitive-resource policy
+
+- Added `operon/safety/data_policy.py` with four classifications: **PUBLIC**, **INTERNAL**, **CONFIDENTIAL**, and **RESTRICTED**.
+- Classified vendor onboarding profiles as restricted because they contain tax identifiers and business contact details. Invoice, deal, quotation, and blueprint sources are confidential; ordinary sandbox documents default to internal. Conservative filename hints catch credential, payroll, employee, banking, tax-ID, contract, invoice, and similar resources outside the standard folders.
+- Evaluated policy after scratchpad interpolation so the gate sees the actual file path and resolved action arguments.
+- Required approval for restricted reads in both preview and execute modes. Preview still bypasses approvals that protect only real writes because it uses an isolated ledger, but it no longer treats data exposure as harmless.
+- Required a separate execution approval before storing vendor tax/contact details, writing persistent files, submitting browser forms, mutating APIs, or calling APIs with credential-bearing headers. Existing destructive-tool and $25,000 financial thresholds remain active.
+- Versioned action fingerprints with the policy version. One approval authorizes one exact step, tool, and original argument set; the next protected action is evaluated independently.
+- Redacted credentials, request bodies, full tax identifiers, and email local parts from the approval display while retaining the original values inside the checkpoint for execution and hashing.
+- Recorded policy ID, risk, classification, resource, categories, approval scope, action fingerprint, and final decision (`approved`, `declined`, or `would_require_on_execution`) in the evidence packet.
+- Added classification and categories to captured source-document evidence. Restricted source downloads require a matching recorded approval as well as the existing hash and sandbox-scope checks.
+
+### File and action restrictions
+
+- Confined file reads and searches to company sample data and run storage.
+- Confined writes to run storage or the operating-system temporary directory. Relative output paths now resolve under run storage.
+- Kept the bounded planner unchanged: arbitrary APIs, browser submission, deletion, and file writes are still unavailable to offline task planning. The strengthened policy protects those registered tools if a live plan proposes them.
+
+### Approval interface
+
+- Replaced the generic interrupt text with an approval card that identifies risk, classification, resource, policy reason, and whether the rule also applies to previews.
+- Renamed the positive action to **Approve once** and kept the exact redacted arguments visible. Approval details remain expanded with the rest of the task evidence.
+- Improved report policy summaries to distinguish protected actions identified in previews from approved or declined actions in executions.
+
+### History and conversation cleanup
+
+- Added **Clear** beside Recent tasks. The first click arms **Confirm clear** for five seconds; the second deletes saved SQLite reports and event streams and starts a fresh browser conversation.
+- Blocked history deletion while a task is running or waiting for approval. Clearing history does not reset the simulated ERP.
+- Retained **New conversation** for clearing only the current browser conversation while keeping saved task history.
+
+Validation: **118 tests passed**. New coverage checks classification, preview-sensitive approval, consecutive exact-action approvals, redacted arguments, file confinement, restricted source access, approval evidence, idle history deletion, and active-run deletion blocking. JavaScript syntax and Git whitespace checks passed.
+
+Files changed in this pass: `operon/safety/data_policy.py`, `operon/safety/approval.py`, `operon/tools/file_tools.py`, `operon/nodes/executor.py`, `operon/graph.py`, `operon/agent.py`, `operon/state.py`, `operon/memory/scratchpad.py`, `operon/runs.py`, `ui/app.py`, `ui/static/index.html`, `ui/static/app.js`, `ui/static/style.css`, `tests/test_data_policy.py`, `tests/test_dashboard.py`, `tests/test_workflows.py`, `tests/test_end_to_end.py`, `README.md`, `ARCHITECTURE.md`, and this report.
+
+![Restricted-resource approval with redacted action details](docs/ui-sensitive-approval.png)
+
+![Two-step clear-history confirmation](docs/ui-clear-history.png)

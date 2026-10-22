@@ -90,6 +90,14 @@ class RunStore:
             return [{"seq": seq, **json.loads(payload)} for seq, payload in db.execute(
                 "SELECT seq,payload FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT 100", (run_id, after))]
 
+    def clear(self):
+        """Delete saved run reports and their event streams as one transaction."""
+        with self.connect() as db:
+            count = db.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+            db.execute("DELETE FROM events")
+            db.execute("DELETE FROM runs")
+        return count
+
     def recover_interrupted(self):
         with self.connect() as db:
             ids = [r[0] for r in db.execute("SELECT id FROM runs WHERE status IN ('queued','running','waiting_approval')")]
@@ -181,7 +189,14 @@ class RunManager:
             if run["approval"]["approval_id"] != approval_id:
                 raise ValueError("This approval is stale or does not match the pending action.")
             self.store.update(run_id, "running")
-            self.store.append(run_id, {"event": "approval_decision", "approved": approved})
+            self.store.append(run_id, {
+                "event": "approval_decision",
+                "approved": approved,
+                "approval_id": approval_id,
+                "policy_id": run["approval"].get("policy_id"),
+                "risk_level": run["approval"].get("risk_level"),
+                "data_classification": run["approval"].get("data_classification"),
+            })
             self._future = self._pool.submit(self._drive, self._agent, self._agent.resume_stream(approved))
             return self.store.get(run_id)
 
@@ -194,6 +209,12 @@ class RunManager:
                 raise RunBusyError("Finish the active task before resetting the ERP.")
             default_erp.reset()
             return default_erp.get_state_snapshot()
+
+    def clear_history(self):
+        with self._lock:
+            if self._active:
+                raise RunBusyError("Finish or decline the active task before clearing saved history.")
+            return self.store.clear()
 
     def close(self):
         self._pool.shutdown(wait=True)
