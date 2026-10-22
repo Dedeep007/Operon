@@ -58,7 +58,8 @@ class RunStore:
                 (status, json.dumps(packet) if packet else None, error, run_id))
             if error:
                 db.execute("INSERT INTO events(run_id,payload) VALUES(?,?)",
-                    (run_id, json.dumps({"event": "error", "message": error})))
+                    (run_id, json.dumps({"event": "error", "message": error,
+                        "user_message": "The server restarted before this task finished. Review the ledger and start the task again." if status == "interrupted" else "The worker stopped unexpectedly before producing a checked result. Review the activity and any saved changes before trying again."})))
             db.execute("INSERT INTO events(run_id,payload) VALUES(?,?)",
                 (run_id, json.dumps({"event": "end", "status": status})))
 
@@ -76,8 +77,13 @@ class RunStore:
     def list(self, limit=30):
         with self.connect() as db:
             db.row_factory = sqlite3.Row
-            return [dict(r) for r in db.execute(
-                "SELECT id,task,mode,status,created_at,error FROM runs ORDER BY created_at DESC LIMIT ?", (limit,))]
+            runs = []
+            for row in db.execute("SELECT id,task,mode,status,created_at,error,packet FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)):
+                run = dict(row)
+                packet = json.loads(run.pop("packet") or "null")
+                run["issue_title"] = (packet.get("issue") or {}).get("title") if packet else None
+                runs.append(run)
+            return runs
 
     def events(self, run_id, after=0):
         with self.connect() as db:

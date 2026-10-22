@@ -16,9 +16,12 @@ Common task patterns:
 4. ERP queries/audits: Use erp_lookup_vendor, erp_get_invoice, or erp_list_invoices.
 5. Intranet portals: Use browser_navigate, browser_fill_form, browser_get_dom.
 6. API tasks: Use api_request.
+7. Deal quotations: Find the latest signed deal with find_latest_signed_deal (optional customer), then read_deal_quotation using {{deal_id}}. Do not guess which deal is latest or substitute another quotation for a missing link.
+8. Cross-source discovery: search_company_records searches local document contents, invoices, and vendors together with a query.
 
 Guidelines:
 - Ground all actions in facts. Never invent invoice IDs, amounts, dates, or vendor IDs when they can be extracted from source documents or lookups.
+- Missing resources are valid outcomes. Use actual lookup results and never invent a document or declare success after an empty search. Ask for clarification when several sources could fit.
 - Dynamic references: Use {{invoice_number}}, {{amount}}, {{due_date}}, {{vendor_id}}, {{vendor_name}}, {{tax_id}}, {{payment_terms}}, {{contact_email}}, {{file_path}} to reference facts discovered by earlier steps.
 - Always generate an exploratory plan for search, investigation, or inspection tasks rather than returning an empty plan. Only return {"steps": [], "error": "Reason"} if the task is completely incomprehensible or impossible.
 - Maximum 12 steps.
@@ -69,7 +72,7 @@ def planner_node(state):
         s.status, s.result, s.error = "pending", None, None
     errors = list(state.get("errors", []))
     if not steps:
-        errors.append(ErrorRecord(step_id=0, error_type="ClarificationRequired",
+        errors.append(ErrorRecord(step_id=0, error_type=data.get("error_type", "ClarificationRequired"),
             message=data.get("error") if isinstance(data, dict) else "No supported plan could be generated. Clarify the task and try again."))
     return {"plan": steps, "errors": errors, "current_step_index": 0, "planner_backend": backend,
             "status": "executing" if steps else "verifying"}

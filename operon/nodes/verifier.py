@@ -7,6 +7,7 @@ from operon.state import VerificationResult
 from operon.environment.context import get_erp
 from operon.memory.scratchpad import Scratchpad
 from operon.validation import parse_amount
+from operon.company_verification import verify_deal_quotation, verify_company_search
 
 
 def verifier_node(state):
@@ -31,7 +32,22 @@ def verifier_node(state):
         except OSError:
             discrepancies.append("A source document is no longer readable.")
 
-    if "invoice" in state["task"].lower():
+    if memory.get_entity("search_no_results"):
+        checks.append("Verify storage search results")
+        term = memory.get_entity("searched_term") or "the requested file"
+        discrepancies.append(f"No matching documents found for '{term}' in the searched company storage.")
+
+    if any(s.tool_name in ("find_latest_signed_deal", "read_deal_quotation") for s in plan):
+        more_checks, more_discrepancies, more_evidence = verify_deal_quotation(memory)
+        checks.extend(more_checks)
+        discrepancies.extend(more_discrepancies)
+        evidence.extend(more_evidence)
+    elif any(s.tool_name == "search_company_records" for s in plan):
+        more_checks, more_discrepancies, more_evidence = verify_company_search(memory)
+        checks.extend(more_checks)
+        discrepancies.extend(more_discrepancies)
+        evidence.extend(more_evidence)
+    elif "invoice" in state["task"].lower():
         source = memory.extracted_data.get("latest_invoice") or memory.extracted_data.get("invoice_source", {})
         if state.get("run_id") and not source:
             discrepancies.append("No source invoice was captured for independent verification.")
@@ -88,9 +104,7 @@ def verifier_node(state):
             evidence.append(f"Registered Vendor: {record['name']} (ID: {record['vendor_id']})")
     elif plan and all(s.status in ("completed", "skipped") for s in plan):
         if memory.get_entity("search_no_results"):
-            checks.append("Verify storage search results")
-            term = memory.get_entity("searched_term") or state["task"]
-            evidence.append(f"Storage search completed: No matching files found for '{term}' in repository storage.")
+            pass  # The empty lookup is recorded as a discrepancy above.
         elif all(s.status == "completed" for s in plan):
             checks.append("Verify autonomous plan execution outcome")
             if memory.source_documents:

@@ -1,6 +1,7 @@
 """API contracts, saved-event replay, restart behavior, and worker isolation."""
 
 import json
+import re
 import threading
 import time
 import pytest
@@ -32,7 +33,16 @@ def wait_run(client, run_id, wanted=None):
 
 
 def test_dashboard_and_preview_evidence_download(client):
-    assert client.get("/").status_code == 200
+    page = client.get("/")
+    assert page.status_code == 200
+    assert re.search(r"/static/app\.js\?v=[a-f0-9]{12}", page.text)
+    assert re.search(r"/static/style\.css\?v=[a-f0-9]{12}", page.text)
+    assert page.headers["cache-control"] == "no-cache"
+    assert page.text.count("open data-always-open") == 4
+    script = client.get(re.search(r'src="([^"]*app\.js\?v=[a-f0-9]{12})"', page.text).group(1))
+    assert script.status_code == 200
+    assert 'querySelectorAll("details[data-always-open]")' in script.text
+    assert 'detail.open = true' in script.text
     before = client.get("/api/erp/state").json()
     created = client.post("/api/runs", json={"task": TASK, "mode": "preview"})
     assert created.status_code == 202

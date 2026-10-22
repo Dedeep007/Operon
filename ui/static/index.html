@@ -23,7 +23,7 @@
       >
         Recent tasks
       </button>
-      <div class="nav-item"><span aria-hidden="true">↳</span> Task desk</div>
+      <div class="nav-item"><span aria-hidden="true">↳</span> Conversation</div>
       <div class="sidebar-section">
         <h2>Recent tasks</h2>
         <button
@@ -48,15 +48,14 @@
 
     <main class="main">
       <header class="topbar">
-        <span>Workspace <span class="slash">/</span> Task desk</span
+        <span>Workspace <span class="slash">/</span> Conversation</span
         ><span id="today" class="muted"></span>
       </header>
       <div class="page-heading">
         <div>
-          <p class="eyebrow">OPERATIONS</p>
-          <h1>Task desk</h1>
+          <h1>Conversation</h1>
           <p class="subtitle">
-            Give Operon a goal. Follow the work. Check the result.
+            Tasks, questions, and follow-ups in one conversation.
           </p>
         </div>
         <button id="btn-reset-erp" class="button button-quiet">
@@ -65,73 +64,10 @@
       </div>
       <div id="notice" class="notice hidden" role="alert"></div>
 
-      <section class="composer" aria-labelledby="composer-title">
-        <div class="composer-top">
-          <h2 id="composer-title">What needs doing?</h2>
-          <span class="scope-note">Invoices · Vendor onboarding</span>
-        </div>
-        <label for="task-input" class="sr-only">Describe your task</label>
-        <textarea
-          id="task-input"
-          rows="3"
-          maxlength="4000"
-          placeholder="Find the latest invoice from Company X and enter it into the ERP."
-        >
-Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</textarea>
-        <div class="composer-bottom">
-          <label class="example-select"
-            ><span>Try an example</span
-            ><select id="example-select" aria-label="Choose an example task">
-              <option value="">Choose a task…</option>
-              <option value="company">Company X · latest invoice</option>
-              <option value="balaji_blueprint">Balaji Construction · blueprint inquiry</option>
-              <option value="balaji_onboard">Balaji Construction · vendor onboarding</option>
-              <option value="acme">Acme · latest invoice</option>
-              <option value="globex">Globex · latest invoice</option>
-              <option value="omni">OmniCorp · approval required</option>
-              <option value="apex">Apex · vendor onboarding</option>
-              <option value="quantum">Quantum · vendor onboarding</option>
-            </select></label
-          >
-          <div class="composer-actions">
-            <button id="btn-preview" class="button button-secondary">
-              Preview changes</button
-            ><button id="btn-run" class="button button-primary">
-              Run task <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-        </div>
-        <p class="composer-footnote">
-          Preview runs in a separate ledger copy. Entries over $25,000 pause for
-          approval when approval checks are enabled.
-        </p>
-      </section>
-
-      <section
-        id="approval-panel"
-        class="approval-panel hidden"
-        aria-labelledby="approval-title"
-        aria-live="polite"
-      >
-        <div>
-          <p class="eyebrow">YOUR DECISION</p>
-          <h2 id="approval-title">This action needs approval</h2>
-          <p id="approval-prompt"></p>
-          <pre id="approval-args"></pre>
-        </div>
-        <div class="approval-actions">
-          <button id="btn-reject" class="button button-secondary">
-            Decline & stop</button
-          ><button id="btn-approve" class="button button-primary">
-            Approve this action
-          </button>
-        </div>
-      </section>
-
       <section class="work-section" aria-labelledby="activity-title">
         <div class="section-heading">
           <div>
-            <h2 id="activity-title">Current task</h2>
+            <h2 id="activity-title">Task context</h2>
             <span id="run-caption" class="muted"
               >Your next task will appear here.</span
             >
@@ -148,150 +84,306 @@ Find the latest invoice from Company X, extract the amount and due date, enter i
           PREVIEW · Results below belong to a separate ledger copy. The company
           ledger is unchanged.
         </div>
-        <div id="chat-bubble" class="chat-bubble hidden" aria-live="polite">
-          <div class="chat-avatar" aria-hidden="true">🤖</div>
-          <div class="chat-body">
-            <div class="chat-header">
-              <span class="chat-author">Operon Task Worker</span>
-              <span id="chat-badge" class="chat-badge">Completed</span>
-            </div>
-            <p id="chat-message" class="chat-message"></p>
-          </div>
-        </div>
-
-        <!-- Live Scratchpad & Whiteboard -->
-        <section id="scratchpad-board" class="whiteboard-container" aria-labelledby="wb-title">
-          <div class="wb-header">
-            <div class="wb-title-group">
-              <span class="wb-marker-icon" aria-hidden="true">📋</span>
-              <div>
-                <h3 id="wb-title">Agent Whiteboard & Scratchpad</h3>
-                <span id="wb-subtitle" class="wb-subtitle">Live deductions, working notes & final verified result</span>
+        <div class="chat-workspace">
+          <section
+            id="chat-bubble"
+            class="chat-bubble"
+            aria-label="Conversation with Operon"
+          >
+            <div class="chat-body">
+              <div class="chat-header">
+                <div>
+                  <h2 class="chat-author">Operon</h2>
+                  <p class="chat-subtitle">Here to help with your company tasks</p>
+                </div>
+                <div class="chat-actions">
+                  <button id="btn-new-chat" class="text-button" type="button">
+                    New conversation</button
+                  ><button
+                    id="btn-chat-latest"
+                    class="text-button hidden"
+                    type="button"
+                    aria-controls="chat-thread"
+                  >
+                    Latest message</button
+                  ><span id="chat-badge" class="chat-badge" role="status"
+                    >Ready</span
+                  >
+                </div>
               </div>
-            </div>
-            <div class="wb-controls">
-              <span id="wb-status-badge" class="wb-status-badge">Standby</span>
-              <button id="btn-copy-whiteboard" class="wb-tool-button" type="button" title="Copy whiteboard summary" aria-label="Copy whiteboard content">
-                <span aria-hidden="true">📋</span> Copy Board
-              </button>
-            </div>
-          </div>
-
-          <div class="wb-canvas">
-            <!-- 1. Task Goal Sticky Note -->
-            <div class="wb-card wb-card-goal">
-              <div class="wb-card-header">
-                <span class="wb-pin" aria-hidden="true">📌</span>
-                <span class="wb-card-label">TASK OBJECTIVE</span>
-              </div>
-              <p id="wb-task-goal" class="wb-card-text">Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.</p>
-            </div>
-
-            <!-- 2. Discovered Facts & Extracted Memory -->
-            <div class="wb-card wb-card-facts">
-              <div class="wb-card-header">
-                <span class="wb-pin" aria-hidden="true">🏷️</span>
-                <span class="wb-card-label">EXTRACTED ENTITIES</span>
-              </div>
-              <div id="wb-facts-grid" class="wb-facts-grid">
-                <span class="wb-empty-hint">Awaiting entity discovery…</span>
-              </div>
-            </div>
-
-            <!-- 3. Real-time Scratchpad Working Notes -->
-            <div class="wb-card wb-card-notes">
-              <div class="wb-card-header">
-                <span class="wb-pin" aria-hidden="true">✍️</span>
-                <span class="wb-card-label">AGENT WORKING NOTES</span>
-              </div>
-              <ul id="wb-notes-list" class="wb-notes-list">
-                <li class="wb-empty-hint">Working notes will appear here as tools execute…</li>
-              </ul>
-            </div>
-
-            <!-- 4. Final Result & Deliverable Card (Prominent display) -->
-            <div id="wb-card-result" class="wb-card wb-card-result">
-              <div class="wb-card-header">
-                <span class="wb-pin wb-pin-result" aria-hidden="true">🏁</span>
-                <span class="wb-card-label wb-result-label">FINAL RESULT & RESOLUTION</span>
-                <span id="wb-result-stamp" class="wb-stamp-badge">Awaiting Execution</span>
-              </div>
-              <div id="wb-result-body" class="wb-result-body">
-                <p id="wb-result-message" class="wb-result-message">The final verified outcome and deliverables will appear here upon completion.</p>
-                <div id="wb-result-stats" class="wb-result-stats hidden">
-                  <div class="wb-stat-pill">
-                    <span class="wb-stat-key">Status</span>
-                    <strong id="wb-stat-status" class="wb-stat-val">—</strong>
+              <div
+                id="chat-thread"
+                class="chat-thread"
+                tabindex="0"
+                role="log"
+                aria-label="Conversation messages"
+                aria-live="polite"
+              ></div>
+              <section
+                id="approval-panel"
+                class="approval-panel hidden"
+                aria-labelledby="approval-title"
+                aria-live="polite"
+              >
+                <div>
+                  <p class="eyebrow">YOUR DECISION</p>
+                  <h2 id="approval-title">This action needs approval</h2>
+                  <p id="approval-prompt"></p>
+                  <details open data-always-open>
+                    <summary>Action details</summary>
+                    <pre id="approval-args"></pre>
+                  </details>
+                </div>
+                <div class="approval-actions">
+                  <button id="btn-reject" class="button button-secondary">
+                    Decline & stop</button
+                  ><button id="btn-approve" class="button button-primary">
+                    Approve this action
+                  </button>
+                </div>
+              </section>
+              <form
+                id="chat-form"
+                class="composer"
+                aria-labelledby="composer-title"
+              >
+                <div class="composer-top">
+                  <h2 id="composer-title">Message Operon</h2>
+                  <span class="scope-note"
+                    >Company documents · Ledger · Deals</span
+                  >
+                </div>
+                <label for="task-input" class="sr-only">Message Operon</label>
+                <textarea
+                  id="task-input"
+                  rows="2"
+                  maxlength="4000"
+                  placeholder="Tell me what you need, or ask about the last result…"
+                ></textarea>
+                <div class="composer-bottom">
+                  <label class="example-select"
+                    ><span>Try an example</span
+                    ><select
+                      id="example-select"
+                      aria-label="Choose an example task"
+                    >
+                      <option value="">Choose a task…</option>
+                      <option value="company">
+                        Company X · latest invoice
+                      </option>
+                      <option value="balaji_blueprint">
+                        Balaji Construction · blueprint inquiry
+                      </option>
+                      <option value="balaji_onboard">
+                        Balaji Construction · vendor onboarding
+                      </option>
+                      <option value="acme">Acme · latest invoice</option>
+                      <option value="globex">Globex · latest invoice</option>
+                      <option value="omni">OmniCorp · approval required</option>
+                      <option value="apex">Apex · vendor onboarding</option>
+                      <option value="quantum">
+                        Quantum · vendor onboarding
+                      </option>
+                      <option value="quotation">
+                        Latest signed deal · quotation
+                      </option>
+                      <option value="missing_quotation">
+                        OmniCorp · missing quotation
+                      </option>
+                      <option value="company_search">
+                        Acme · search company records
+                      </option>
+                    </select></label
+                  >
+                  <div class="composer-actions">
+                    <button
+                      id="btn-preview"
+                      type="button"
+                      class="button button-secondary"
+                    >
+                      Preview task</button
+                    ><button
+                      id="btn-run"
+                      type="submit"
+                      class="button button-primary"
+                    >
+                      Send <span aria-hidden="true">↗</span>
+                    </button>
                   </div>
-                  <div class="wb-stat-pill">
-                    <span class="wb-stat-key">Ledger</span>
-                    <strong id="wb-stat-ledger" class="wb-stat-val">—</strong>
+                </div>
+                <p class="composer-footnote">
+                  Enter to send · Shift+Enter for a new line. Preview task uses
+                  a separate ledger.
+                </p>
+              </form>
+            </div>
+          </section>
+          <section
+            id="scratchpad-board"
+            class="whiteboard-container"
+            aria-labelledby="wb-title"
+          >
+            <div class="wb-header">
+              <div class="wb-title-group">
+                <div>
+                  <h3 id="wb-title">Scratchpad</h3>
+                  <span id="wb-subtitle" class="wb-subtitle"
+                    >Source facts, working notes, and outcome.</span
+                  >
+                </div>
+              </div>
+              <div class="wb-controls">
+                <span id="wb-status-badge" class="wb-status-badge">Ready</span>
+                <button
+                  id="btn-copy-whiteboard"
+                  class="wb-tool-button"
+                  type="button"
+                  aria-label="Copy scratchpad notes"
+                >
+                  Copy notes
+                </button>
+                <span id="wb-copy-status" class="sr-only" role="status"></span>
+              </div>
+            </div>
+
+            <div class="wb-canvas">
+              <div class="wb-card wb-card-goal">
+                <div class="wb-card-header">
+                  <h4 class="wb-card-label">Task</h4>
+                </div>
+                <p id="wb-task-goal" class="wb-card-text">
+                  Find the latest invoice from Company X, extract the amount and
+                  due date, enter it into our internal system, and tell me once
+                  it is done.
+                </p>
+              </div>
+
+              <div class="wb-card wb-card-facts">
+                <div class="wb-card-header">
+                  <h4 class="wb-card-label">Collected facts</h4>
+                </div>
+                <dl id="wb-facts-grid" class="wb-facts-grid">
+                  <div class="wb-fact-row wb-facts-empty">
+                    <dt class="sr-only">Collected facts</dt>
+                    <dd class="wb-empty-hint">
+                      Facts appear as source files are read.
+                    </dd>
                   </div>
-                  <div class="wb-stat-pill">
-                    <span class="wb-stat-key">Integrity</span>
-                    <strong id="wb-stat-hash" class="wb-stat-val">—</strong>
+                </dl>
+              </div>
+
+              <div class="wb-card wb-card-sources">
+                <div class="wb-card-header">
+                  <h4 class="wb-card-label">Source files</h4>
+                </div>
+                <ul id="wb-source-links" class="wb-source-links">
+                  <li class="wb-empty-hint">
+                    Source links appear after the task finishes.
+                  </li>
+                </ul>
+              </div>
+              <div class="wb-card wb-card-notes">
+                <div class="wb-card-header">
+                  <h4 class="wb-card-label">Working notes</h4>
+                </div>
+                <ul id="wb-notes-list" class="wb-notes-list">
+                  <li class="wb-empty-hint">
+                    Notes appear as the task progresses.
+                  </li>
+                </ul>
+              </div>
+
+              <div id="wb-card-result" class="wb-card wb-card-result">
+                <div class="wb-card-header">
+                  <h4 class="wb-card-label">Outcome</h4>
+                  <span id="wb-result-stamp" class="wb-stamp-badge"
+                    >Pending</span
+                  >
+                </div>
+                <div id="wb-result-body" class="wb-result-body">
+                  <p id="wb-result-message" class="wb-result-message">
+                    Run a task to see the checked outcome here.
+                  </p>
+                  <div id="wb-result-stats" class="wb-result-stats hidden">
+                    <div class="wb-stat-pill">
+                      <span class="wb-stat-key">Status</span>
+                      <strong id="wb-stat-status" class="wb-stat-val">—</strong>
+                    </div>
+                    <div class="wb-stat-pill">
+                      <span class="wb-stat-key">Ledger</span>
+                      <strong id="wb-stat-ledger" class="wb-stat-val">—</strong>
+                    </div>
+                    <div class="wb-stat-pill">
+                      <span class="wb-stat-key">Integrity</span>
+                      <strong id="wb-stat-hash" class="wb-stat-val">—</strong>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        <div class="work-grid">
-          <section class="activity-panel">
-            <div class="panel-heading">
-              <h3>Plan & activity</h3>
-              <span id="plan-count" class="muted">0 steps</span>
-            </div>
-            <ol id="plan-container" class="plan-list">
-              <li class="empty-state">
-                <span class="empty-mark" aria-hidden="true">↳</span
-                ><strong>Ready when you are.</strong>
-                <p>
-                  The plan, actions, and any recovery attempts appear here as
-                  they happen.
-                </p>
-              </li>
-            </ol>
-            <div
-              id="recovery-note"
-              class="recovery-note hidden"
-              aria-live="polite"
-            ></div>
           </section>
-          <aside class="detail-panel">
-            <section class="detail-section">
-              <p class="eyebrow">OUTCOME CHECK</p>
-              <div class="verification-heading">
-                <span id="verification-symbol" class="verification-symbol"
-                  >○</span
-                >
-                <h3 id="verif-title">Waiting for a task</h3>
-              </div>
-              <p id="verif-description" class="muted">
-                The result is checked against the company ledger and source
-                document.
-              </p>
-              <ul id="verif-checklist" class="check-list"></ul>
-              <p id="verif-evidence" class="verification-evidence"></p>
-            </section>
-            <section class="detail-section">
-              <div class="panel-heading">
-                <h3>Collected facts</h3>
-                <span id="fact-count" class="muted">0</span>
-              </div>
-              <dl id="entities-list" class="facts">
-                <p class="muted">Details appear as source files are read.</p>
-              </dl>
-            </section>
-            <section class="detail-section">
-              <h3>Source documents</h3>
-              <ul id="source-list" class="source-list">
-                <li class="muted">No documents read yet.</li>
-              </ul>
-            </section>
-          </aside>
         </div>
+
+        <!-- Task notes and source facts -->
+
+        <details class="execution-details" open data-always-open>
+          <summary>Task activity and verification</summary>
+          <div class="work-grid">
+            <section class="activity-panel">
+              <div class="panel-heading">
+                <h3>Plan & activity</h3>
+                <span id="plan-count" class="muted">0 steps</span>
+              </div>
+              <ol id="plan-container" class="plan-list">
+                <li class="empty-state">
+                  <span class="empty-mark" aria-hidden="true">↳</span
+                  ><strong>Ready when you are.</strong>
+                  <p>
+                    The plan, actions, and any recovery attempts appear here as
+                    they happen.
+                  </p>
+                </li>
+              </ol>
+              <div
+                id="recovery-note"
+                class="recovery-note hidden"
+                aria-live="polite"
+              ></div>
+            </section>
+            <aside class="detail-panel">
+              <section class="detail-section">
+                <p class="eyebrow">OUTCOME CHECK</p>
+                <div class="verification-heading">
+                  <span id="verification-symbol" class="verification-symbol"
+                    >○</span
+                  >
+                  <h3 id="verif-title">Waiting for a task</h3>
+                </div>
+                <p id="verif-description" class="muted">
+                  The result is checked against the company ledger and source
+                  document.
+                </p>
+                <ul id="verif-checklist" class="check-list"></ul>
+                <p id="verif-evidence" class="verification-evidence"></p>
+              </section>
+              <section class="detail-section">
+                <div class="panel-heading">
+                  <h3>Collected facts</h3>
+                  <span id="fact-count" class="muted">0</span>
+                </div>
+                <dl id="entities-list" class="facts">
+                  <p class="muted">Details appear as source files are read.</p>
+                </dl>
+              </section>
+              <section class="detail-section">
+                <h3>Source documents</h3>
+                <ul id="source-list" class="source-list">
+                  <li class="muted">No documents read yet.</li>
+                </ul>
+              </section>
+            </aside>
+          </div>
+        </details>
       </section>
 
       <section
@@ -319,7 +411,7 @@ Find the latest invoice from Company X, extract the amount and due date, enter i
           ><span><strong id="stat-diff">0</strong> new records</span
           ><span id="policy-summary"></span>
         </div>
-        <details class="report-details">
+        <details class="report-details" open data-always-open>
           <summary>
             Proposed / recorded ledger changes & evidence fingerprint
           </summary>
@@ -357,7 +449,7 @@ Find the latest invoice from Company X, extract the amount and due date, enter i
             </tbody>
           </table>
         </div>
-        <details class="vendor-directory">
+        <details class="vendor-directory" open data-always-open>
           <summary id="vendor-count">Vendor directory</summary>
           <div id="vendor-list" class="vendor-list"></div>
         </details>

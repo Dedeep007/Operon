@@ -2,11 +2,12 @@
 
 import asyncio
 import json
+import hashlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool, field_validator
 from operon.config import settings
@@ -15,6 +16,7 @@ from operon.llm import llm_provider
 from operon.runs import RunManager, RunBusyError, TERMINAL
 from operon.tools.registry import registry
 from operon.workflows import SUPPORTED_TOOLS
+from operon.conversation import chat_reply
 
 
 @asynccontextmanager
@@ -46,6 +48,10 @@ class ApprovalRequest(BaseModel):
     approved: StrictBool
 
 
+class ChatRequest(TaskRequest):
+    context_run_id: str | None = Field(default=None, max_length=200)
+
+
 def manager(request):
     return request.app.state.runs
 
@@ -59,7 +65,11 @@ def find_run(request, run_id):
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
-    return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    for name in ("app.js", "style.css"):
+        revision = hashlib.sha256((STATIC_DIR / name).read_bytes()).hexdigest()[:12]
+        page = page.replace(f"/static/{name}", f"/static/{name}?v={revision}")
+    return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/info")
@@ -95,6 +105,25 @@ def create_run(req: TaskRequest, request: Request):
         raise HTTPException(409, str(exc))
 
 
+@app.post("/api/chat")
+def chat(req: ChatRequest, request: Request):
+    previous = find_run(request, req.context_run_id) if req.context_run_id else None
+    response = chat_reply(req.task, previous)
+    if response["kind"] == "reply":
+        return response
+    if response["kind"] == "decision":
+        if req.mode == "preview":
+            return {"kind": "reply", "reply": "This action is waiting in an actual run. Use Send or the approval buttons to approve or decline it; preview does not authorize execution."}
+        try:
+            run = manager(request).decide(previous["id"], previous["approval"]["approval_id"], response["approved"])
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+    else:
+        mode = "preview" if req.mode == "preview" else response.get("mode", req.mode)
+        run = create_run(TaskRequest(task=response["task"], mode=mode), request)
+    return {"kind": "run", "run": run}
+
+
 @app.get("/api/runs")
 def list_runs(request: Request, limit: int = Query(30, ge=1, le=100)):
     return manager(request).store.list(limit)
@@ -120,6 +149,25 @@ def download_evidence(run_id: str, request: Request):
     if not packet:
         raise HTTPException(409, "Evidence is available after the run finishes.")
     return JSONResponse(packet, headers={"Content-Disposition": f'attachment; filename="{run_id}-evidence.json"'})
+
+
+@app.get("/api/runs/{run_id}/sources/{source_index}")
+def view_source(run_id: str, source_index: int, request: Request):
+    packet = find_run(request, run_id)["packet"]
+    sources = (packet or {}).get("source_documents", [])
+    if source_index < 0 or source_index >= len(sources):
+        raise HTTPException(404, "This task has no source at that position.")
+    source = sources[source_index]
+    path = Path(source["file_path"]).resolve()
+    if not path.is_relative_to(settings.sample_data_dir.resolve()):
+        raise HTTPException(403, "Only company sandbox sources can be opened here.")
+    try:
+        content = path.read_bytes()
+    except OSError:
+        raise HTTPException(404, "The captured source is no longer available. Check its location before retrying.")
+    if hashlib.sha256(content).hexdigest() != source["sha256"]:
+        raise HTTPException(409, "This source changed after the task. Run the task again to capture and verify its current version.")
+    return Response(content, media_type="text/plain", headers={"X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/runs/{run_id}/events")

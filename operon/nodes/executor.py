@@ -15,6 +15,7 @@ PREVIEW_TOOLS = {
     "search_files", "read_document", "extract_invoice_data", "find_latest_invoice_file",
     "read_vendor_profile", "erp_lookup_vendor", "erp_create_invoice", "erp_get_invoice",
     "erp_list_invoices", "erp_register_vendor", "erp_verify_invoice_status",
+    "find_latest_signed_deal", "read_deal_quotation", "search_company_records",
 }
 
 def executor_node(state: OperonState) -> Dict[str, Any]:

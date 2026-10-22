@@ -1,0 +1,11 @@
+{
+  "deal_id": "DEAL-2026-104",
+  "customer": "Globex Software Technologies",
+  "status": "signed",
+  "signed_at": "2026-10-18",
+  "quotation_id": "QT-2026-104",
+  "quotation_file": "globex_platform.json",
+  "amount": 18500,
+  "currency": "USD",
+  "description": "Synthetic sandbox deal for platform support."
+}

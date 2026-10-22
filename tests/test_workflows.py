@@ -143,7 +143,9 @@ def test_unsupported_goal_cannot_report_success():
     packet = OperonAgent(erp=erp).run("Delete every customer and send an email")
     assert packet.status == "failed"
     assert packet.total_actions_taken == 0
-    assert packet.errors[0].error_type == "ClarificationRequired"
+    assert packet.errors[0].error_type == "UnsupportedTask"
+    assert packet.issue.code == "unsupported_task"
+    assert "haven’t confirmed" in packet.agent_message
     assert erp.get_state_snapshot() == before
 
 

@@ -1,6 +1,6 @@
 # Operon architecture
 
-The system implements the internship problem statement inside a bounded company sandbox. It processes invoices and vendor profiles stored as local files, mutates a simulated ERP, and verifies outcomes independently. The graph and interfaces are shared across both workflows.
+The system implements the internship problem statement inside a bounded company sandbox. It processes invoices and vendor profiles, retrieves quotations from signed deal sources, searches company records, mutates a simulated ERP when requested, and verifies outcomes independently. The graph and interfaces are shared across these workflows.
 
 ## Execution graph
 
@@ -50,7 +50,13 @@ Recovery can normalize a valid monetary string, extract a valid ISO date embedde
 
 Verification reads the current ERP directly. It checks source hashes, presence, amount, due date, vendor association, and completion of planned steps. Vendor onboarding checks all source profile fields and active status. A no-op tool history is not sufficient proof of success.
 
+`company_tools.py` adds three read-only tools: `find_latest_signed_deal`, `read_deal_quotation`, and `search_company_records`. Deal selection uses source signing dates and returns a catalogue manifest. Quote lookup follows the selected deal's explicit link and constrains it to the company quotation folder. `company_verification.py` independently rereads the catalogue and quotation, checks current selection against the manifest, excludes unsigned deals, and compares the IDs, customer, amount, and currency. A changed catalogue or mismatched quote fails verification. Cross-source search captures text excerpts, file hashes, and ERP record snapshots, which verification checks against current sources and ledger data.
+
+An empty required search is an unresolved outcome, not success. It stops dependent actions unless the next step is an explicit alternate search. A later successful search clears the empty-result flag. Permanent missing files, ambiguous deals, and invalid company sources stop without repeated attempts at the same action.
+
 The summarizer determines `completed`, `partially_completed`, or `failed` from verification and new records. It compares the ERP with the run's own baseline, includes errors and policy checks, and generates a factual narrative from the actual records.
+
+`outcomes.py` creates a typed `TaskIssue` with a reason code, user-facing title, explanation, and next step. This distinguishes missing resources, clarification, unsupported work, declined actions, invalid source data, conflicts, tool errors, and verification failures. The conversational response explains changes that already occurred; technical diagnostics remain in the evidence. A source that was never searched is never described as nonexistent. Send `try again` after a failed run to resubmit that same goal and mode through the ordinary execution and approval path.
 
 ## Web execution and persistence
 
@@ -58,29 +64,35 @@ The summarizer determines `completed`, `partially_completed`, or `failed` from v
 
 | Endpoint | Purpose |
 | --- | --- |
+| `POST /api/chat` | Reply to a task follow-up, start a goal, or decide the context run's pending approval |
 | `POST /api/runs` | Validate a goal and start one task; returns a run ID |
 | `GET /api/runs` | Recent run metadata |
 | `GET /api/runs/{id}` | Status, pending approval, and final report |
 | `GET /api/runs/{id}/events` | Stream incremental saved events; resume from `Last-Event-ID` |
 | `POST /api/runs/{id}/approval` | Approve or decline the pending exact action |
 | `GET /api/runs/{id}/evidence` | Download JSON evidence |
+| `GET /api/runs/{id}/sources/{index}` | Open a captured sandbox source only if its current hash still matches the report |
 | `POST /api/run` | Synchronous compatibility endpoint; returns 202 if approval is pending |
 | `GET /api/erp/state` | Current company ledger and vendor directory |
 | `POST /api/erp/reset` | Reset seeded ERP data when no task is active |
 
 SSE only observes a previously created run. It never creates work on a reconnect. Node events are serialized immediately after each transition, before later nodes run. Terminal status and its final event are committed in one SQLite transaction.
 
+`operon/conversation.py` routes simple conversational messages before task execution. Greetings need no tools. Supported follow-up questions read the context run's saved evidence packet rather than the current ledger or a new model response. A request to execute a preview requires a verified preview and resubmits its original goal through the existing run manager. Chat approval uses the pending action's existing fingerprint; preview messages cannot authorize an actual run. New goals still use the existing planner and graph.
+
 Reports and events persist under `storage/`; ERP records and graph checkpoints remain in memory. At startup, unfinished saved runs become `interrupted`, with an explanation that their checkpoints cannot resume. Completed reports remain readable.
 
 ## Evidence format
 
-Each packet contains the goal, run ID, mode, planner backend, plan, source file hashes, action log, errors and recovery attempts, policy checks, verification details, created records, per-run state differences, duration, and `evidence_sha256`.
+Each packet contains the goal, run ID, mode, planner backend, plan, source file hashes, action log, errors and recovery attempts, policy checks, verification details, a structured issue when unsuccessful, created records, per-run state differences, duration, and `evidence_sha256`. Quotation selection manifests and search matches are captured in the action observations.
 
 The digest is SHA-256 over UTF-8 JSON with sorted keys, compact separators, `ensure_ascii=False`, and the digest field removed. `evidence_digest()` recomputes it. The checksum supports comparison with an independently retained report; it provides no signer identity or protection against an attacker replacing both content and digest.
 
 ## UI decisions
 
-The dashboard prioritizes the user's goal, activity, decision requests, verification, and ledger. It uses neutral paper colors, restrained green accents, system fonts, a simple sidebar, and expandable technical details. Failed and preview outcomes have distinct labels. Dynamic document content uses text nodes instead of HTML interpolation. History remains accessible on a narrow screen through the Recent tasks toggle.
+The dashboard prioritizes the user's goal, activity, decision requests, verification, and ledger. It uses neutral paper colors, restrained green accents, system fonts, and a simple sidebar. Technical details stay expanded so plans, action arguments, verification, evidence, and vendor records remain inspectable throughout a demo. Failed and preview outcomes have distinct labels. Dynamic document content uses text nodes instead of HTML interpolation. History remains accessible on a narrow screen through the Recent tasks toggle.
+
+The conversation is the primary input surface. Its transcript has independent scrolling, a persistent composer, and a latest-message shortcut. Operon replies use a restrained response surface, while the scratchpad gives the checked outcome its own success or failure emphasis. Detailed activity and verification stay visible below. The latest 100 conversation messages and context run ID persist in browser local storage, while SQLite remains the source for run reports and events. Starting a new conversation does not reset the ERP.
 
 ## Validation and future work
 

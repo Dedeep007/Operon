@@ -15,6 +15,10 @@ document.addEventListener("DOMContentLoaded", () => {
     apex: "Read the vendor profile for Apex Technologies and register them into our internal ERP.",
     quantum:
       "Read the vendor profile for Quantum Cloud Systems and register them into our internal ERP.",
+    quotation: "Get me the quotation for the latest deal signed.",
+    missing_quotation:
+      "Get the quotation for the latest signed deal with OmniCorp.",
+    company_search: "Search company records for Acme.",
   };
   const terminal = new Set([
     "completed",
@@ -22,6 +26,20 @@ document.addEventListener("DOMContentLoaded", () => {
     "partially_completed",
     "interrupted",
   ]);
+  function keepExpanded(detail) {
+    if (!detail) return detail;
+    detail.open = true;
+    const summary = detail.querySelector(":scope > summary");
+    if (summary && !summary.dataset.expandedLock) {
+      summary.dataset.expandedLock = "true";
+      summary.title = "This information stays visible while you work";
+      summary.addEventListener("click", (event) => event.preventDefault());
+    }
+    return detail;
+  }
+  document
+    .querySelectorAll("details[data-always-open]")
+    .forEach(keepExpanded);
   const labels = {
     queued: "Queued",
     running: "Working",
@@ -40,6 +58,14 @@ document.addEventListener("DOMContentLoaded", () => {
     tax_id: "Tax ID",
     payment_terms: "Payment terms",
     contact_email: "Contact",
+    deal_id: "Signed deal",
+    customer_name: "Customer",
+    signed_at: "Signed on",
+    quotation_id: "Quotation",
+    quotation_amount: "Quoted amount",
+    quotation_currency: "Currency",
+    quote_valid_until: "Valid until",
+    matched_resources: "Matches found",
   };
   let source = null,
     currentRun = null,
@@ -78,14 +104,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function setBusy(value) {
     busy = value;
-    ["btn-run", "btn-preview", "btn-reset-erp"].forEach(
-      (id) => ($(id).disabled = value),
-    );
-    $("task-input").disabled = value;
-    $("example-select").disabled = value;
+    const waitingForReply = value && !currentApproval;
+    $("btn-run").disabled = waitingForReply;
+    $("btn-preview").disabled = value;
+    $("btn-reset-erp").disabled = value;
+    $("btn-new-chat").disabled = value;
+    $("task-input").disabled = waitingForReply;
+    $("example-select").disabled = waitingForReply;
+  }
+  function outcomeLabel(packet) {
+    return packet.status === "failed" && packet.issue
+      ? packet.issue.title
+      : labels[packet.status] || packet.status;
+  }
+  function runErrorMessage(run) {
+    return run.status === "interrupted"
+      ? "The server restarted before this task finished. Review the ledger and start the task again."
+      : "The worker stopped before producing a checked result. Review the activity and any saved changes before trying again.";
   }
   function setStatus(status) {
-    $("run-status").textContent = labels[status] || status;
+    $("run-status").textContent =
+      status === "failed" && lastPacket
+        ? outcomeLabel(lastPacket)
+        : labels[status] || status;
     $("run-status").className =
       "status-label " +
       (status === "waiting_approval"
@@ -96,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function reset(run) {
     currentRun = run;
-    currentApproval = null;
+    currentApproval = run.approval || null;
     lastMemory = run.scratchpad || null;
     lastPacket = run.packet || null;
     seen = new Set();
@@ -128,38 +169,211 @@ document.addEventListener("DOMContentLoaded", () => {
     if (run.packet) {
       renderChat(run.packet, false);
       renderWhiteboard(run.scratchpad, run.packet, false);
-    } else if (run.status === "running") {
+    } else if (!terminal.has(run.status)) {
       renderChat(null, true);
       renderWhiteboard(run.scratchpad, null, true);
     } else {
-      $("chat-bubble").classList.add("hidden");
+      renderChat(
+        {
+          run_id: run.id,
+          task: run.task,
+          mode: run.mode,
+          status: run.status,
+          summary: runErrorMessage(run),
+        },
+        false,
+      );
       renderWhiteboard(null, null, false);
     }
     setStatus(run.status);
     setBusy(!terminal.has(run.status));
-    notice(run.error || "");
+    notice(run.error ? runErrorMessage(run) : "");
+  }
+  const conversationStorageKey = "operon.conversation.v1";
+  const welcomeMessage =
+    "Hi, I’m Operon. What can I help you get done? I can find company documents, check quotations, process invoices, and work with the sandbox ledger. I’ll keep you posted and show you what I verified.";
+  let conversation = [],
+    contextRunId = null,
+    pendingMessageId = null;
+
+  function messageRecord(role, text, runId = null, status = "completed") {
+    return { id: crypto.randomUUID(), role, text, runId, status };
+  }
+  function persistConversation() {
+    try {
+      localStorage.setItem(
+        conversationStorageKey,
+        JSON.stringify({ messages: conversation.slice(-100), contextRunId }),
+      );
+    } catch (_) {
+      /* The current conversation still works if browser storage is full. */
+    }
+  }
+  function restoreConversation() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(conversationStorageKey));
+      if (
+        !saved ||
+        !Array.isArray(saved.messages) ||
+        !saved.messages.every(
+          (m) =>
+            m &&
+            typeof m.id === "string" &&
+            typeof m.text === "string" &&
+            ["user", "assistant"].includes(m.role),
+        )
+      )
+        return false;
+      conversation = saved.messages.slice(-100);
+      contextRunId =
+        typeof saved.contextRunId === "string" ? saved.contextRunId : null;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function renderTranscript(forceLatest = false) {
+    const thread = $("chat-thread");
+    const oldTop = thread.scrollTop;
+    const follow =
+      forceLatest || thread.scrollHeight - oldTop - thread.clientHeight < 32;
+    thread.replaceChildren(
+      ...conversation.map((message) => {
+        const turn = element(
+          "article",
+          "chat-turn " +
+            (message.role === "user"
+              ? "chat-turn-request"
+              : "chat-turn-response"),
+        );
+        turn.dataset.messageId = message.id;
+        turn.append(
+          element(
+            "span",
+            "chat-turn-author",
+            message.role === "user" ? "You" : "Operon",
+          ),
+          element("p", "chat-message", message.text),
+        );
+        return turn;
+      }),
+    );
+    requestAnimationFrame(() => {
+      thread.scrollTop = follow ? thread.scrollHeight : oldTop;
+      updateChatScroll();
+    });
+    persistConversation();
+  }
+  function addMessage(role, text, runId = null, status = "completed") {
+    const message = messageRecord(role, text, runId, status);
+    conversation.push(message);
+    conversation = conversation.slice(-100);
+    renderTranscript(true);
+    return message;
+  }
+  function updateMessage(message, text, status = "completed") {
+    message.text = text;
+    message.status = status;
+    renderTranscript();
   }
   function renderChat(packet, isWorking) {
-    const bubble = $("chat-bubble");
-    if (!bubble) return;
+    const runId = packet ? packet.run_id : currentRun && currentRun.id;
+    let response = [...conversation]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.runId === runId && runId);
+    if (!response && pendingMessageId)
+      response = conversation.find((m) => m.id === pendingMessageId);
+    if (!response)
+      response = addMessage(
+        "assistant",
+        "Working on your request…",
+        runId,
+        "working",
+      );
+    response.runId = runId;
     if (isWorking) {
-      bubble.classList.remove("hidden");
-      $("chat-badge").textContent = "Working…";
+      const waiting = Boolean(currentApproval);
+      $("chat-badge").textContent = waiting ? "Needs approval" : "Working…";
       $("chat-badge").className = "chat-badge working";
-      $("chat-message").textContent =
-        "Working on your request: discovering files, reading source data, and coordinating execution...";
+      updateMessage(
+        response,
+        waiting
+          ? "I’ve reached an action that needs your approval. The details are shown below—reply ‘approve’ or ‘decline’, or use the buttons."
+          : "Got it. I’m checking the company sources and working on that now.",
+        "working",
+      );
       return;
     }
-    if (!packet) {
-      bubble.classList.add("hidden");
-      return;
-    }
-    bubble.classList.remove("hidden");
+    if (!packet) return;
     const ok = packet.status === "completed";
-    $("chat-badge").textContent = ok ? "Completed" : "Incomplete";
+    $("chat-badge").textContent = ok
+      ? packet.mode === "preview"
+        ? "Preview complete"
+        : "Completed"
+      : outcomeLabel(packet);
     $("chat-badge").className = "chat-badge" + (ok ? "" : " failed");
-    $("chat-message").textContent = packet.agent_message || packet.summary;
+    updateMessage(
+      response,
+      packet.agent_message || packet.summary,
+      packet.status,
+    );
   }
+  function updateChatScroll() {
+    const thread = $("chat-thread");
+    $("btn-chat-latest").classList.toggle(
+      "hidden",
+      thread.scrollHeight - thread.scrollTop - thread.clientHeight < 32,
+    );
+  }
+  $("chat-thread").addEventListener("scroll", updateChatScroll, {
+    passive: true,
+  });
+  window.addEventListener("resize", updateChatScroll);
+  $("btn-chat-latest").addEventListener("click", () => {
+    $("chat-thread").scrollTop = $("chat-thread").scrollHeight;
+    $("chat-thread").focus({ preventScroll: true });
+    updateChatScroll();
+  });
+  $("btn-new-chat").addEventListener("click", () => {
+    if (busy || currentApproval) return;
+    if (source) source.close();
+    currentRun = null;
+    contextRunId = null;
+    pendingMessageId = null;
+    lastMemory = null;
+    lastPacket = null;
+    conversation = [messageRecord("assistant", welcomeMessage)];
+    $("task-input").value = "";
+    $("approval-panel").classList.add("hidden");
+    $("evidence-banner").classList.add("hidden");
+    $("preview-note").classList.add("hidden");
+    $("recovery-note").classList.add("hidden");
+    $("run-caption").textContent = "Start with a request or a question.";
+    $("plan-container").replaceChildren(
+      element("li", "muted", "The next task’s plan will appear here."),
+    );
+    $("plan-count").textContent = "0 steps";
+    $("entities-list").replaceChildren(
+      element("p", "muted", "Details appear as source files are read."),
+    );
+    $("fact-count").textContent = "0";
+    $("source-list").replaceChildren(
+      element("li", "muted", "No documents read yet."),
+    );
+    $("verification-symbol").textContent = "○";
+    $("verif-title").textContent = "Waiting for a task";
+    $("verif-description").textContent =
+      "The result is checked against the source and ledger.";
+    $("verif-checklist").replaceChildren();
+    $("verif-evidence").textContent = "";
+    $("chat-badge").textContent = "Ready";
+    $("chat-badge").className = "chat-badge";
+    setStatus("Ready");
+    renderWhiteboard(null, null, false);
+    renderTranscript(true);
+    localStorage.removeItem("operon.lastRun");
+    $("task-input").focus();
+  });
   function renderWhiteboard(memory, packet, isWorking) {
     if (memory) lastMemory = memory;
     if (packet) lastPacket = packet;
@@ -168,7 +382,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const goalEl = $("wb-task-goal");
     if (goalEl) {
-      const taskVal = (currentRun && currentRun.task) ? currentRun.task : $("task-input").value.trim();
+      const taskVal =
+        currentRun && currentRun.task
+          ? currentRun.task
+          : $("task-input").value.trim();
       goalEl.textContent = taskVal || "Awaiting task description…";
     }
 
@@ -179,10 +396,14 @@ document.addEventListener("DOMContentLoaded", () => {
         badge.className = "wb-status-badge working";
       } else if (pack) {
         const ok = pack.status === "completed";
-        badge.textContent = ok ? "Completed" : "Incomplete";
+        badge.textContent = ok
+          ? pack.mode === "preview"
+            ? "Preview complete"
+            : "Completed"
+          : outcomeLabel(pack);
         badge.className = "wb-status-badge " + (ok ? "completed" : "failed");
       } else {
-        badge.textContent = "Standby";
+        badge.textContent = "Ready";
         badge.className = "wb-status-badge";
       }
     }
@@ -190,20 +411,70 @@ document.addEventListener("DOMContentLoaded", () => {
     const grid = $("wb-facts-grid");
     if (grid) {
       grid.replaceChildren();
-      const facts = Object.entries(mem.entities || {}).filter(([k]) => factLabels[k]);
+      const facts = Object.entries(mem.entities || {}).filter(
+        ([k]) => factLabels[k],
+      );
       if (!facts.length) {
-        grid.append(element("span", "wb-empty-hint", isWorking ? "Extracting entities…" : "Awaiting entity discovery…"));
+        const empty = element("div", "wb-fact-row wb-facts-empty");
+        empty.append(
+          element("dt", "sr-only", "Collected facts"),
+          element(
+            "dd",
+            "wb-empty-hint",
+            isWorking
+              ? "Reading source details…"
+              : pack && pack.issue
+                ? "No source facts were confirmed for this task."
+                : "Facts appear as source files are read.",
+          ),
+        );
+        grid.append(empty);
       } else {
         facts.forEach(([key, val]) => {
-          const tag = element("span", "wb-fact-tag");
+          const tag = element("div", "wb-fact-row");
           const label = factLabels[key] || key;
-          const displayVal = key === "amount"
-            ? "$" + Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          const displayVal = ["amount", "quotation_amount"].includes(key)
+            ? Number(val).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
             : String(val);
-          tag.append(element("strong", "", label + ": "), document.createTextNode(displayVal));
+          tag.append(element("dt", "", label), element("dd", "", displayVal));
           grid.append(tag);
         });
       }
+    }
+
+    const sourceLinks = $("wb-source-links");
+    sourceLinks.replaceChildren();
+    const capturedSources =
+      (pack && pack.source_documents) || mem.source_documents || [];
+    if (pack && capturedSources.length) {
+      capturedSources.forEach((doc, index) => {
+        const link = element(
+          "a",
+          "",
+          doc.file_path.split(/[\\/]/).slice(-2).join("/"),
+        );
+        link.href = `/api/runs/${pack.run_id}/sources/${index}`;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.title =
+          "Open the captured source; its hash is checked before serving.";
+        const item = element("li");
+        item.append(link);
+        sourceLinks.append(item);
+      });
+    } else {
+      sourceLinks.append(
+        element(
+          "li",
+          "wb-empty-hint",
+          pack
+            ? "No source documents were captured."
+            : "Source links appear after the task finishes.",
+        ),
+      );
     }
 
     const notesList = $("wb-notes-list");
@@ -211,7 +482,15 @@ document.addEventListener("DOMContentLoaded", () => {
       notesList.replaceChildren();
       const notes = mem.notes || [];
       if (!notes.length) {
-        notesList.append(element("li", "wb-empty-hint", isWorking ? "Observing tool outputs…" : "Working notes will appear here as tools execute…"));
+        notesList.append(
+          element(
+            "li",
+            "wb-empty-hint",
+            isWorking
+              ? "Waiting for the next task update…"
+              : "Notes appear as the task progresses.",
+          ),
+        );
       } else {
         notes.forEach((note) => {
           notesList.append(element("li", "wb-note-item", note));
@@ -228,57 +507,114 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cardResult && stamp && msg && stats) {
       if (isWorking && !pack) {
         cardResult.className = "wb-card wb-card-result";
-        stamp.textContent = "Drafting…";
+        stamp.textContent = "In progress";
         stamp.className = "wb-stamp-badge working";
-        msg.textContent = "The agent is executing steps, gathering source evidence, and preparing the final resolution…";
+        msg.textContent =
+          "The outcome will appear after the source and ledger checks finish.";
         stats.classList.add("hidden");
       } else if (pack) {
         const ok = pack.status === "completed";
         cardResult.className = "wb-card wb-card-result" + (ok ? "" : " failed");
-        stamp.textContent = ok ? "VERIFIED RESULT ✓" : "TASK INCOMPLETE";
-        stamp.className = "wb-stamp-badge" + (ok ? "" : " failed");
+        stamp.textContent = ok ? "Verified" : outcomeLabel(pack);
+        stamp.className = "wb-stamp-badge" + (ok ? " verified" : " failed");
         msg.textContent = pack.agent_message || pack.summary;
         stats.classList.remove("hidden");
         const statusEl = $("wb-stat-status");
-        if (statusEl) statusEl.textContent = ok ? "Verified ✓" : "Needs Review";
+        if (statusEl)
+          statusEl.textContent = ok ? "Verified" : outcomeLabel(pack);
         const ledgerEl = $("wb-stat-ledger");
-        if (ledgerEl) ledgerEl.textContent = (pack.created_records && pack.created_records.length) ? `+${pack.created_records.length} Record` : "Ledger Matched";
+        if (ledgerEl) {
+          const count = (pack.created_records || []).length;
+          ledgerEl.textContent = count
+            ? `${count} ${pack.mode === "preview" ? "proposed" : "new"} record${count === 1 ? "" : "s"}`
+            : "No new records";
+        }
         const hashEl = $("wb-stat-hash");
-        if (hashEl) hashEl.textContent = (pack.source_documents && pack.source_documents.length) ? `${pack.source_documents.length} Doc(s) Checked` : "Verified";
+        if (hashEl)
+          hashEl.textContent =
+            pack.verification && pack.verification.is_verified
+              ? "Checks passed"
+              : "Review report";
       } else {
         cardResult.className = "wb-card wb-card-result";
-        stamp.textContent = "Awaiting Execution";
+        stamp.textContent = "Pending";
         stamp.className = "wb-stamp-badge";
-        msg.textContent = "The final verified outcome and deliverables will appear here upon completion.";
+        msg.textContent = "Run a task to see the checked outcome here.";
         stats.classList.add("hidden");
       }
     }
   }
   async function start(mode) {
     const task = $("task-input").value.trim();
-    if (!task || busy) return;
+    if (!task || (busy && !currentApproval)) return;
     notice("");
-    lastMemory = null;
-    lastPacket = null;
-    renderChat(null, true);
-    renderWhiteboard(null, null, true);
+    const userMessage = addMessage("user", task);
+    const responseMessage = addMessage(
+      "assistant",
+      "Got it—I’m checking that now…",
+      null,
+      "working",
+    );
+    pendingMessageId = responseMessage.id;
+    $("task-input").value = "";
     setBusy(true);
     try {
-      const run = await post("/api/runs", { task, mode });
-      await openRun(run.id);
+      const response = await post("/api/chat", {
+        task,
+        mode,
+        context_run_id: contextRunId,
+      });
+      if (response.kind === "reply") {
+        updateMessage(responseMessage, response.reply);
+        pendingMessageId = null;
+        $("chat-badge").textContent = currentApproval
+          ? "Needs approval"
+          : "Ready";
+        $("chat-badge").className =
+          "chat-badge" + (currentApproval ? " working" : "");
+        setBusy(Boolean(currentApproval));
+        $("task-input").focus();
+        return;
+      }
+      contextRunId = response.run.id;
+      userMessage.runId = response.run.id;
+      responseMessage.runId = response.run.id;
+      persistConversation();
+      await openRun(response.run.id, { keepConversation: true });
     } catch (error) {
+      updateMessage(
+        responseMessage,
+        "I couldn’t complete that request: " + error.message,
+        "failed",
+      );
+      pendingMessageId = null;
       notice(error.message);
-      setBusy(false);
-      renderChat(null, false);
+      setBusy(Boolean(currentApproval));
+      $("task-input").value = task;
     }
   }
-  async function openRun(id) {
+  async function openRun(id, { keepConversation = false } = {}) {
     if (source) source.close();
     try {
       const run = await api(`/api/runs/${id}`);
+      contextRunId = run.id;
+      if (!keepConversation) {
+        conversation = [
+          messageRecord("assistant", welcomeMessage),
+          messageRecord("user", run.task, run.id),
+          messageRecord(
+            "assistant",
+            "Loading the task result…",
+            run.id,
+            "working",
+          ),
+        ];
+        pendingMessageId = conversation[conversation.length - 1].id;
+        renderTranscript(true);
+      }
       reset(run);
-      $("task-input").value = run.task;
       localStorage.setItem("operon.lastRun", id);
+      persistConversation();
       source = new EventSource(`/api/runs/${id}/events`);
       source.onmessage = (message) => {
         if (!currentRun || currentRun.id !== id) return;
@@ -301,7 +637,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   function consume(event) {
-    if (event.event === "start") setStatus("running");
+    if (event.event === "start") {
+      currentRun.status = "running";
+      setStatus("running");
+      if (!lastPacket) renderChat(null, true);
+    }
     if (event.event === "node_update") {
       if (event.planner_backend)
         $("model-name").textContent =
@@ -320,6 +660,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else if (event.event === "approval_required") {
       currentApproval = event.approval;
+      currentRun.status = "waiting_approval";
       $("approval-prompt").textContent = currentApproval.prompt;
       $("approval-args").textContent = JSON.stringify(
         currentApproval.tool_args,
@@ -329,28 +670,43 @@ document.addEventListener("DOMContentLoaded", () => {
       $("approval-panel").classList.remove("hidden");
       setStatus("waiting_approval");
       setBusy(true);
+      renderChat(null, true);
       $("btn-approve").disabled = false;
       $("btn-reject").disabled = false;
       loadHistory().catch((error) => notice(error.message));
     } else if (event.event === "approval_decision") {
+      currentApproval = null;
+      currentRun.status = "running";
       $("approval-panel").classList.add("hidden");
       setStatus("running");
-    } else if (event.event === "error") notice(event.message);
-    else if (event.event === "end") {
+      setBusy(true);
+      renderChat(null, true);
+    } else if (event.event === "error") {
+      const message = event.user_message || runErrorMessage(currentRun);
+      notice(message);
+      renderChat(
+        {
+          run_id: currentRun.id,
+          task: currentRun.task,
+          status: "failed",
+          summary: message,
+        },
+        false,
+      );
+    } else if (event.event === "end") {
       source.close();
+      currentApproval = null;
+      currentRun.status = event.status;
+      pendingMessageId = null;
       setBusy(false);
       setStatus(event.status);
       $("approval-panel").classList.add("hidden");
       loadHistory().catch((error) => notice(error.message));
       loadLedger();
+      persistConversation();
     }
   }
   function renderPlan(steps) {
-    const expanded = new Set(
-      Array.from($("plan-container").querySelectorAll("details[open]")).map(
-        (d) => d.dataset.step,
-      ),
-    );
     $("plan-container").replaceChildren();
     $("plan-count").textContent =
       `${steps.filter((s) => s.status === "completed").length} / ${steps.length} done`;
@@ -377,7 +733,8 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       const detail = element("details", "step-detail");
       detail.dataset.step = String(step.step_id);
-      detail.open = expanded.has(detail.dataset.step);
+      detail.open = true;
+      detail.dataset.alwaysOpen = "";
       detail.append(
         element("summary", "", "View action details"),
         element(
@@ -386,6 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
           `${step.tool_name}\n${JSON.stringify(step.tool_args, null, 2)}${step.error ? "\n\n" + step.error : ""}`,
         ),
       );
+      keepExpanded(detail);
       row.append(heading, detail);
       $("plan-container").append(row);
     });
@@ -402,7 +760,7 @@ document.addEventListener("DOMContentLoaded", () => {
         element(
           "dd",
           "",
-          key === "amount"
+          ["amount", "quotation_amount"].includes(key)
             ? Number(value).toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -413,7 +771,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     if (memory.source_documents && memory.source_documents.length)
       renderSources(memory.source_documents);
-    renderWhiteboard(memory, null, currentRun ? currentRun.status === "running" : true);
+    renderWhiteboard(
+      memory,
+      null,
+      currentRun ? currentRun.status === "running" : true,
+    );
   }
   function renderSources(sources) {
     $("source-list").replaceChildren();
@@ -443,16 +805,21 @@ document.addEventListener("DOMContentLoaded", () => {
     $("verif-evidence").textContent = result.evidence;
   }
   function renderReport(packet) {
+    lastPacket = packet;
     const ok = packet.status === "completed";
     $("evidence-banner").className = "report-panel" + (ok ? "" : " failed");
     $("report-title").textContent =
       packet.mode === "preview"
         ? ok
           ? "Preview verified"
-          : "Preview needs attention"
+          : packet.issue
+            ? `Preview: ${packet.issue.title.toLowerCase()}`
+            : "Preview needs attention"
         : ok
           ? "Outcome verified"
-          : "Task needs attention";
+          : packet.issue
+            ? packet.issue.title
+            : "Task needs attention";
     $("evidence-summary-text").textContent = packet.summary;
     $("stat-actions").textContent = packet.total_actions_taken;
     $("stat-time").textContent = `${packet.execution_time_seconds}s`;
@@ -505,7 +872,9 @@ document.addEventListener("DOMContentLoaded", () => {
           "span",
           "",
           (run.mode === "preview" ? "Preview · " : "") +
-            (labels[run.status] || run.status),
+            (run.status === "failed" && run.issue_title
+              ? run.issue_title
+              : labels[run.status] || run.status),
         ),
         element(
           "time",
@@ -580,13 +949,24 @@ document.addEventListener("DOMContentLoaded", () => {
     month: "short",
     year: "numeric",
   });
-  $("btn-run").addEventListener("click", () => start("execute"));
+  $("chat-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    start("execute");
+  });
+  $("task-input").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      $("chat-form").requestSubmit();
+    }
+  });
   $("btn-preview").addEventListener("click", () => start("preview"));
   $("btn-approve").addEventListener("click", () => decide(true));
   $("btn-reject").addEventListener("click", () => decide(false));
   $("example-select").addEventListener("change", (event) => {
-    if (examples[event.target.value])
+    if (examples[event.target.value]) {
       $("task-input").value = examples[event.target.value];
+      $("task-input").focus();
+    }
   });
   $("btn-refresh-erp").addEventListener("click", loadLedger);
   $("btn-refresh-history").addEventListener("click", () =>
@@ -611,17 +991,46 @@ document.addEventListener("DOMContentLoaded", () => {
   if (copyBtn) {
     copyBtn.addEventListener("click", () => {
       const task = $("wb-task-goal") ? $("wb-task-goal").textContent : "";
-      const facts = Array.from(document.querySelectorAll("#wb-facts-grid .wb-fact-tag")).map(t => t.textContent).join(" | ");
-      const notes = Array.from(document.querySelectorAll("#wb-notes-list .wb-note-item")).map(n => "• " + n.textContent).join("\n");
-      const result = $("wb-result-message") ? $("wb-result-message").textContent : "";
-      const text = `📋 OPERON AGENT WHITEBOARD & SCRATCHPAD\n=======================================\n🎯 TASK OBJECTIVE:\n${task}\n\n🏷️ EXTRACTED ENTITIES:\n${facts || "None"}\n\n✍️ WORKING NOTES:\n${notes || "None"}\n\n🏆 FINAL RESULT & DELIVERABLE:\n${result}`;
-      navigator.clipboard.writeText(text).then(() => {
-        const originalText = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<span aria-hidden="true">✓</span> Copied!';
-        setTimeout(() => { copyBtn.innerHTML = originalText; }, 2000);
-      }).catch(() => {});
+      const facts = Array.from(
+        document.querySelectorAll(
+          "#wb-facts-grid .wb-fact-row:not(.wb-facts-empty)",
+        ),
+      )
+        .map((row) =>
+          Array.from(row.children)
+            .map((cell) => cell.textContent)
+            .join(": "),
+        )
+        .join("\n");
+      const notes = Array.from(
+        document.querySelectorAll("#wb-notes-list .wb-note-item"),
+      )
+        .map((n) => "- " + n.textContent)
+        .join("\n");
+      const result = $("wb-result-message")
+        ? $("wb-result-message").textContent
+        : "";
+      const text = `Operon scratchpad\n\nTask\n${task}\n\nCollected facts\n${facts || "None"}\n\nWorking notes\n${notes || "None"}\n\nOutcome\n${result}`;
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          copyBtn.textContent = "Copied";
+          $("wb-copy-status").textContent = "Scratchpad notes copied.";
+          setTimeout(() => {
+            copyBtn.textContent = "Copy notes";
+          }, 2000);
+        })
+        .catch(() => {
+          $("wb-copy-status").textContent =
+            "Could not copy the notes. Please try again.";
+        });
     });
   }
+  const restoredConversation = restoreConversation();
+  if (!conversation.length)
+    conversation = [messageRecord("assistant", welcomeMessage)];
+  renderTranscript(true);
+  renderWhiteboard(null, null, false);
   api("/api/info")
     .then((info) => ($("model-name").textContent = info.model_name))
     .catch((error) => notice(error.message));
@@ -630,8 +1039,20 @@ document.addEventListener("DOMContentLoaded", () => {
     .then((runs) => {
       const active = runs.find((run) => !terminal.has(run.status));
       const saved = localStorage.getItem("operon.lastRun");
-      if (active) return openRun(active.id);
-      if (saved && runs.some((run) => run.id === saved)) return openRun(saved);
+      if (active)
+        return openRun(active.id, {
+          keepConversation: contextRunId === active.id,
+        });
+      if (contextRunId && runs.some((run) => run.id === contextRunId))
+        return openRun(contextRunId, { keepConversation: true });
+      if (
+        !restoredConversation &&
+        saved &&
+        runs.some((run) => run.id === saved)
+      )
+        return openRun(saved);
+      contextRunId = null;
+      persistConversation();
     })
     .catch((error) => notice(error.message));
 });

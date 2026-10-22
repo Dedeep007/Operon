@@ -42,12 +42,21 @@ class VerificationResult(BaseModel):
     evidence: str = Field(description="Concrete proof from system state (e.g., DB record, file created)")
     discrepancies: List[str] = Field(default_factory=list, description="Any unmatched conditions or deviations")
 
+class TaskIssue(BaseModel):
+    """User-facing explanation, separate from technical execution diagnostics."""
+    code: Literal["resource_not_found", "needs_clarification", "unsupported_task", "declined",
+                  "invalid_data", "conflict", "tool_failed", "verification_failed"]
+    title: str
+    message: str
+    next_step: str
+
 class EvidencePacket(BaseModel):
     """Final auditable package of completion."""
     task: str
     status: Literal["completed", "failed", "partially_completed"]
     summary: str
     agent_message: str = Field(default="", description="Direct conversational response addressing the user")
+    issue: Optional[TaskIssue] = None
     total_actions_taken: int
     execution_time_seconds: float
     verification: Optional[VerificationResult] = None

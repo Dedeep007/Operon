@@ -4,7 +4,7 @@ An autonomous task worker for a small simulated company environment. Give it an 
 
 > Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done.
 
-The prototype focuses on two workflows: **latest-invoice processing** and **vendor onboarding**. It uses real local files and an in-memory ERP with validation, balances, and audit records. The same graph handles both workflows.
+The prototype supports **latest-invoice processing**, **vendor onboarding**, and **retrieving the quotation linked to the latest signed deal**. It also searches across company text files, ledger invoices, and vendor records. It uses real local sources and an in-memory ERP with validation, balances, and audit records. All workflows use the same execution graph.
 
 See [CHANGES.md](CHANGES.md) for the project review, UI redesign, implemented improvements, validation, and proposed next steps. [ARCHITECTURE.md](ARCHITECTURE.md) explains the implementation.
 
@@ -47,10 +47,15 @@ uvicorn ui.app:app --host 127.0.0.1 --port 8000
 
 Open [localhost:8000](http://localhost:8000). Windows users can also run `run_dashboard.bat`.
 
-- **Run task** executes against the company ERP.
-- **Preview changes** runs the same workflow against an independent ledger copy. Proposed records, balance changes, verification, and approval requirements appear in its report.
-- High-value entries over $25,000 pause for an **Approve this action** or **Decline & stop** decision when approval checks are enabled.
+- **Send** starts a conversation: greet Operon, give it a task, or ask about the last result. Enter sends; Shift+Enter adds a line.
+- **Preview task** runs the workflow against an independent ledger copy. Proposed records, balance changes, verification, and approval requirements appear in its report. After a verified preview, send **run it** to execute the same goal.
+- Ask follow-ups such as **How much was it?**, **When is it due?**, or **How did you verify it?** Answers use the saved report without running the task again.
+- High-value entries over $25,000 pause for approval when approval checks are enabled. Review the action and use its decision buttons, or send **approve** or **decline** in the conversation.
+- The transcript scrolls independently and retains the latest 100 messages in this browser. **New conversation** clears the conversation context while keeping the company ledger and saved task history.
+- Activity, action arguments, verification, report evidence, and the vendor directory stay expanded, so the worker’s decisions and checks remain visible without extra clicks.
 - Recent tasks replay saved activity. **Download evidence** exports the source hashes, tool calls, verification, changes, errors, and report digest.
+- **Source files** in the scratchpad open the captured sandbox documents. The server checks their hashes first and refuses to serve a source that changed after the task.
+- Failed tasks explain the reason, the search scope, and a useful next step. After correcting a missing or invalid source, send **try again** to rerun the same goal; a failed preview stays a preview.
 - **Reset sandbox** restores seeded ERP records. It is blocked while a task is running or waiting for approval.
 
 Run the CLI:
@@ -72,10 +77,16 @@ The installed `operon` command uses the same CLI. It streams progress and prompt
 | Latest Globex Software invoice | `INV-GLX-2026-002`, $6,850.00, due 2026-04-30 |
 | Latest OmniCorp invoice | `INV-OMNI-2026-001`, $48,500.00, approval required |
 | Onboard Apex, Quantum, Horizon, or Cyberdyne | Read the corresponding JSON profile and verify the registered name, tax ID, payment terms, email, and active status |
+| Get me the quotation for the latest deal signed | Select `DEAL-2026-105` for Acme by its signing date, then read linked quotation `QT-2026-105`, USD 24,000.00 |
+| Get the quotation for the latest signed deal with Globex | Select Globex's signed source deal and verify `QT-2026-104`, USD 18,500.00 |
+| Get the quotation for the latest signed deal with OmniCorp | Demonstrate a real missing-resource outcome: the signed deal exists but its linked quotation is intentionally absent |
+| Search company records for Acme | Search local text/JSON contents plus ledger invoices and vendor records; show typed matches and captured evidence |
 
 Repeating an invoice or vendor task with identical data verifies the existing record without duplicating it. Conflicting existing details produce a failure requiring attention.
 
 Unsupported offline tasks return an actionable explanation. Operon does not substitute an unrelated Company X task or invent missing invoice fields.
+
+Quotation retrieval independently checks the signing dates, excludes drafts, verifies the linked quote's ID, deal reference, customer, amount, and currency, and detects changes to the deal catalogue during execution. Equal latest signing dates require clarification. The synthetic catalogue contains four deals and three quotation files; the OmniCorp quotation is deliberately missing for the failure demo.
 
 ## Architecture and decisions
 
@@ -102,7 +113,7 @@ python demo/run_vendor_onboard.py
 python demo/run_error_recovery.py
 ```
 
-The suite has 64 passing tests covering the original workflows, independent verification, source selection, recovery, approval scope, preview isolation, duplicate handling, API validation, saved-event replay, and restart handling. Tests force offline planning and reset shared fixtures; they never call Groq.
+The suite has 108 passing tests covering the original workflows, independent verification, source selection, recovery, approval scope, preview isolation, duplicate handling, API validation, saved-event replay, restart handling, conversational follow-ups, linked quotations, company search, missing resources, corrected-source retries, and hash-checked source access. Tests force offline planning and reset shared fixtures; they never call Groq.
 
 The recovery demo creates a temporary malformed JSON invoice. Its prose-formatted date fails ERP validation, is normalized, retries successfully, and is checked against the source. The original sample files are unchanged.
 
@@ -113,11 +124,14 @@ A short demo recording can follow this sequence:
 3. Select OmniCorp and show the approval pause before an entry is created; decline it or explicitly approve the simulated action.
 4. Onboard Quantum to demonstrate the same graph handling a different goal.
 5. Run the recovery demo in the terminal and show the failed attempt followed by a successful retry.
+6. Ask for the quotation from the latest signed deal. Open its source links and show the independent latest-date and field checks. Repeat for OmniCorp to demonstrate a missing linked source with a useful recovery instruction.
 
 ## Assumptions and limits
 
 - The demonstration uses synthetic USD invoices and known local vendor profiles. Text/JSON extraction is deterministic; scanned PDF OCR and complex layouts are outside the supported demo.
 - The ERP is in memory and resets when the server restarts. SQLite run reports and events persist under `storage/runs.sqlite3`.
+- Conversation routing handles task requests, simple greetings, explicit preview execution, approval decisions, and common questions about the latest task. It is a bounded task conversation; arbitrary discussion and editing a paused plan through clarification are future work. The browser-local transcript is separate from saved SQLite task reports.
+- Deal and quotation tools read local JSON sources; they do not connect to a real CRM or send quotations. Signing dates use day precision. Company-record search covers text/JSON/Markdown/CSV sources and ERP snapshots; it is keyword search, not semantic retrieval. Unreadable or oversized text files make the search incomplete.
 - Approval checkpoints live in the current process. A restart marks unfinished runs as interrupted and clears their pending decisions. Review the ledger before starting another task; automatic restart recovery is a future improvement.
 - One task runs at a time in the dashboard. Separate CLI processes use separate in-memory ERP instances.
 - The local dashboard has no authentication and is intended to bind to localhost. Multi-user hosting, external accounting connectors, payments, and unrestricted desktop automation are outside this prototype.

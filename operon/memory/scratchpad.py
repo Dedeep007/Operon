@@ -62,6 +62,40 @@ class Scratchpad(BaseModel):
         if not isinstance(data, dict):
             return
 
+        for document in data.get("source_documents", []):
+            if document not in self.source_documents:
+                self.source_documents.append(document)
+        if "deal_record" in data:
+            deal = data["deal_record"]
+            self.extracted_data["deal_record"] = dict(deal)
+            for key in ("deal_id", "signed_at"):
+                self.record_entity(key, deal[key])
+            self.record_entity("customer_name", deal["customer"])
+            self.add_note(f"Selected signed deal {deal['deal_id']} for {deal['customer']} ({deal['signed_at']}).")
+        if "selection_manifest" in data:
+            self.extracted_data["deal_selection_manifest"] = data["selection_manifest"]
+            self.extracted_data["deal_customer_query"] = data.get("customer_query", "")
+            self.add_note(f"Compared {data['eligible_count']} eligible signed deal(s) by source signing date; drafts were excluded.")
+        if "quotation_record" in data:
+            quote = data["quotation_record"]
+            self.extracted_data["quotation_record"] = dict(quote)
+            self.record_entity("quotation_id", quote["quotation_id"])
+            self.record_entity("quotation_amount", quote["amount"])
+            self.record_entity("quotation_currency", quote["currency"])
+            self.record_entity("quote_valid_until", quote["valid_until"])
+            self.add_note(f"Read linked quotation {quote['quotation_id']} and checked its deal reference, customer, amount, and currency.")
+        if tool_name == "search_company_records":
+            self.extracted_data["company_search"] = data
+            self.record_entity("matched_resources", data["total_matches"])
+            self.record_entity("searched_term", data["query"])
+            self.record_entity("search_no_results", not data["matches"] and not data.get("skipped_files"))
+            for match in data["matches"]:
+                if match.get("file_path"):
+                    document = {"file_path": match["file_path"], "sha256": match["sha256"]}
+                    if document not in self.source_documents:
+                        self.source_documents.append(document)
+            self.add_note(f"Searched company document contents, ledger invoices, and vendors for '{data['query']}': {data['total_matches']} match(es).")
+
         if data.get("file_path") and data.get("sha256"):
             document = {"file_path": data["file_path"], "sha256": data["sha256"]}
             if document not in self.source_documents:

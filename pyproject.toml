@@ -40,7 +40,7 @@ include = ["operon*"]
 py-modules = ["cli"]
 
 [tool.setuptools.package-data]
-operon = ["environment/sample_data/invoices/*", "environment/sample_data/vendors/*"]
+operon = ["environment/sample_data/invoices/*", "environment/sample_data/vendors/*", "environment/sample_data/deals/*", "environment/sample_data/quotations/*", "environment/sample_data/documents/*", "environment/sample_data/blueprints/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

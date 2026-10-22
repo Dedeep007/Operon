@@ -1,0 +1,11 @@
+{
+  "deal_id": "DEAL-2026-105",
+  "customer": "Acme Logistics Inc",
+  "status": "signed",
+  "signed_at": "2026-10-20",
+  "quotation_id": "QT-2026-105",
+  "quotation_file": "acme_dispatch.json",
+  "amount": 24000,
+  "currency": "USD",
+  "description": "Synthetic sandbox deal for a dispatch dashboard and implementation."
+}

@@ -1,0 +1,11 @@
+{
+  "deal_id": "DEAL-2026-106",
+  "customer": "Company X Solutions",
+  "status": "draft",
+  "signed_at": null,
+  "quotation_id": "QT-2026-106",
+  "quotation_file": "company_x_draft.json",
+  "amount": 32000,
+  "currency": "USD",
+  "description": "Synthetic unsigned proposal; excluded from latest signed deal selection."
+}

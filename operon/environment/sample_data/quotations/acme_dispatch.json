@@ -1,0 +1,10 @@
+{
+  "quotation_id": "QT-2026-105",
+  "deal_id": "DEAL-2026-105",
+  "customer": "Acme Logistics Inc",
+  "amount": 24000,
+  "currency": "USD",
+  "valid_until": "2026-11-30",
+  "scope": "Dispatch dashboard, data import, and implementation support.",
+  "note": "Synthetic demonstration data; no real contract or financial commitment."
+}

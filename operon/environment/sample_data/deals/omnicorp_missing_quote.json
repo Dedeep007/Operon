@@ -1,0 +1,11 @@
+{
+  "deal_id": "DEAL-2026-103",
+  "customer": "OmniCorp Industries",
+  "status": "signed",
+  "signed_at": "2026-10-12",
+  "quotation_id": "QT-2026-103",
+  "quotation_file": "omnicorp_maintenance.json",
+  "amount": 9600,
+  "currency": "USD",
+  "description": "Synthetic missing-resource scenario: linked quotation intentionally absent."
+}

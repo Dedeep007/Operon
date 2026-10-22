@@ -1,0 +1,10 @@
+{
+  "quotation_id": "QT-2026-106",
+  "deal_id": "DEAL-2026-106",
+  "customer": "Company X Solutions",
+  "amount": 32000,
+  "currency": "USD",
+  "valid_until": "2026-12-01",
+  "scope": "Draft expansion proposal; not attached to a signed deal.",
+  "note": "Synthetic demonstration data; no real contract or financial commitment."
+}

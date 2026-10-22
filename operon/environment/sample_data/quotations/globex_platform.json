@@ -1,0 +1,10 @@
+{
+  "quotation_id": "QT-2026-104",
+  "deal_id": "DEAL-2026-104",
+  "customer": "Globex Software Technologies",
+  "amount": 18500,
+  "currency": "USD",
+  "valid_until": "2026-11-15",
+  "scope": "Platform support and migration assistance.",
+  "note": "Synthetic demonstration data; no real contract or financial commitment."
+}

@@ -5,6 +5,8 @@ import json
 import time
 from operon.state import EvidencePacket
 from operon.environment.context import get_erp
+from operon.outcomes import explain_failure, failure_message
+from operon.validation import parse_amount
 
 
 def evidence_digest(packet):
@@ -23,7 +25,26 @@ def generate_agent_message(state, verification, verified, changed, mode):
     memory = Scratchpad.from_dict(state.get("scratchpad", {}))
     prefix = "In our isolated preview sandbox: " if mode == "preview" else ""
 
-    # 1. Invoice processing task
+    if not verified:
+        issue = explain_failure(state, verification)
+        return failure_message(state, issue, changed, mode)
+
+    quote = memory.extracted_data.get("quotation_record")
+    deal = memory.extracted_data.get("deal_record")
+    if quote and deal:
+        return (
+            f"{prefix}Here’s the quotation I found: {quote['quotation_id']} for {deal['customer']}, "
+            f"linked to their latest signed deal {deal['deal_id']} (signed {deal['signed_at']}). "
+            f"The quoted amount is {quote['currency']} {parse_amount(quote['amount']):,.2f}; valid until {quote['valid_until']}.\n\n"
+            f"{quote.get('scope', '')}\n\n"
+            "I checked the signing dates, excluded unsigned deals, and verified the quotation’s deal reference, customer, amount, currency, and source integrity."
+        )
+    search = memory.extracted_data.get("company_search")
+    if search:
+        found = "\n".join(f"• {m['label']} ({m['kind']})" for m in search["matches"][:6])
+        more = " More matches and excerpts are available in the evidence report." if len(search["matches"]) > 6 or search["truncated"] else ""
+        return f"{prefix}I found {search['total_matches']} matches for “{search['query']}” across company documents, ledger invoices, and vendor records.\n\n{found}\n\nI checked the captured sources and ledger records.{more}"
+
     if "invoice" in lowered:
         source = memory.extracted_data.get("latest_invoice") or memory.extracted_data.get("invoice_source", {})
         num = source.get("invoice_number") or memory.get_entity("invoice_number")
@@ -32,23 +53,16 @@ def generate_agent_message(state, verification, verified, changed, mode):
         vendor = source.get("vendor") or memory.get_entity("vendor_name")
         v_id = memory.get_entity("vendor_id")
         
-        if verified:
-            try:
-                amt_str = f"${float(amt):,.2f}" if amt is not None else "the specified amount"
-            except (ValueError, TypeError):
-                amt_str = str(amt)
-            return (
-                f"{prefix}I have completed your task! I found the latest invoice ({num or 'unspecified'}) "
-                f"from {vendor or 'the vendor'}, extracted the amount ({amt_str}) and due date ({due or 'unspecified'}), "
-                f"resolved the vendor in our internal ERP ledger (Vendor ID: {v_id or 'verified'}), and entered the invoice into the system. "
-                f"Both the ledger entry and field fidelity have been verified."
-            )
-        else:
-            reasons = "; ".join(verification.discrepancies) if verification and verification.discrepancies else "The operation could not be confirmed."
-            return (
-                f"{prefix}I attempted to process the invoice, but could not complete the request. "
-                f"Reason: {reasons}"
-            )
+        try:
+            amt_str = f"${float(amt):,.2f}" if amt is not None else "the specified amount"
+        except (ValueError, TypeError):
+            amt_str = str(amt)
+        action = "entered it into the ledger" if changed else "confirmed the matching ledger entry already exists"
+        return (
+            f"{prefix}Done — I found the latest invoice ({num or 'unspecified'}) from {vendor or 'the vendor'} "
+            f"for {amt_str}, due {due or 'unspecified'}, and {action}. "
+            f"I verified the amount, due date, source integrity, and vendor association ({v_id or 'verified'})."
+        )
 
     # 2. Vendor onboarding task
     if any(k in lowered for k in ("vendor", "onboard", "register")):
@@ -58,39 +72,22 @@ def generate_agent_message(state, verification, verified, changed, mode):
         terms = profile.get("payment_terms") or memory.get_entity("payment_terms") or "Net 30"
         v_id = memory.get_entity("vendor_id")
 
-        if verified:
-            return (
-                f"{prefix}I have completed your task! I read the onboarding profile for {v_name or 'the vendor'}, "
-                f"verified the tax ID ({tax_id or 'recorded'}) and payment terms ({terms}), "
-                f"and registered them into our internal ERP system (Assigned Vendor ID: {v_id or 'Active'})."
-            )
-        else:
-            reasons = "; ".join(verification.discrepancies) if verification and verification.discrepancies else "Registration could not be confirmed."
-            return (
-                f"{prefix}I attempted to onboard the vendor, but encountered an issue: {reasons}"
-            )
-
-    # 3. File / blueprint / document inquiry or search
-    if memory.get_entity("search_no_results"):
-        term = memory.get_entity("searched_term") or "the requested topic"
         return (
-            f"{prefix}I searched across our company storage and repository files for '{term}', "
-            f"but no matching documents or blueprints were found in the current archive."
+            f"{prefix}Done — I read the onboarding profile for {v_name or 'the vendor'}, "
+            f"verified the tax ID ({tax_id or 'recorded'}) and payment terms ({terms}), "
+            f"and confirmed their registration in the ERP (Vendor ID: {v_id or 'Active'})."
         )
 
+    # 3. File / blueprint / document inquiry or search
     if memory.source_documents:
         doc_names = ", ".join(Path(d["file_path"]).name for d in memory.source_documents)
         return (
-            f"{prefix}I have completed your task! I located and inspected the requested document(s): {doc_names}. "
+            f"{prefix}I found and checked the requested document(s): {doc_names}. "
             f"The content was reviewed and source file integrity was verified."
         )
 
     # 4. General fallback
-    if verified:
-        return f"{prefix}I have completed your task! {verification.evidence}."
-    else:
-        reasons = "; ".join(verification.discrepancies) if verification and verification.discrepancies else "Action could not be confirmed."
-        return f"{prefix}I was unable to complete the task. Details: {reasons}."
+    return f"{prefix}I completed the task. {verification.evidence}."
 
 
 def summarizer_node(state):
@@ -102,18 +99,19 @@ def summarizer_node(state):
     prefix = ("Preview verified in an isolated ERP copy. " if verified else "Preview in an isolated ERP copy. ") if state.get("mode") == "preview" else ""
     if verified:
         summary = prefix + verification.evidence + "."
-        if not changed:
+        if not changed and any(s.tool_name in ("erp_create_invoice", "erp_register_vendor") for s in state.get("plan", [])):
             summary += " Matching records already existed; no new records were needed."
     else:
-        summary = prefix + "Task could not be verified: " + "; ".join(verification.discrepancies if verification else ["Execution aborted."])
+        issue = explain_failure(state, verification)
+        summary = prefix + issue.message + " " + issue.next_step
     agent_message = generate_agent_message(state, verification, verified, changed, state.get("mode", "execute"))
     scratchpad = Scratchpad.from_dict(state.get("scratchpad", {}))
     if verified and verification:
-        scratchpad.notes.append(f"Outcome verified: {verification.evidence}")
-    scratchpad.notes.append(f"Final resolution: {agent_message}")
+        scratchpad.add_note(f"Outcome verified: {verification.evidence}")
+    scratchpad.add_note(f"Final resolution: {agent_message}")
 
     packet = EvidencePacket(task=state["task"], status=status, summary=summary,
-        agent_message=agent_message,
+        agent_message=agent_message, issue=explain_failure(state, verification) if not verified else None,
         total_actions_taken=len(state.get("action_history", [])),
         execution_time_seconds=round(time.time() - state.get("start_time", time.time()), 3),
         verification=verification, created_records=changed, state_diffs=diff,

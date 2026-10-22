@@ -176,3 +176,119 @@ A high-value action paused before execution:
 4. **One real sandbox connector.** If needed, replace the ERP adapter with a permitted test API while preserving policy and verification. Add it only after the local demo remains reliable.
 
 Scanned-document OCR, arbitrary desktop control, payment execution, multi-agent delegation, and multiple enterprise integrations remain outside this implementation. They would expand the prototype beyond the supplied brief's preference for narrow, genuine functionality.
+
+## 22 October 2026 — Chat and scratchpad visual integration
+
+Updated the newly added messaging and scratchpad components to match the task workspace.
+
+- Removed the robot avatar, clipboard/pin/tag/flag emojis, dotted whiteboard background, colored sticky-note cards, shadows, and decorative status pills.
+- Replaced them with neutral sections, simple borders, consistent typography, readable fact rows, and plain status labels.
+- Simplified the labels to Task, Collected facts, Working notes, and Outcome.
+- Styled the message area as a conversation with clearly labeled **You** and **Operon** turns.
+- Bounded the conversation height with its own vertical scrollbar, so long requests and responses do not expand the entire page.
+- Added keyboard focus and scrolling, plus a **Latest message** shortcut when viewing earlier content. Updates follow the latest response when already at the bottom and preserve the reading position otherwise.
+- Kept the layout responsive: conversation labels and scratchpad sections stack on narrow screens, and summary statistics become simple rows.
+- Changed **Copy notes** to export plain text with readable field/value pairs and an accessible copied/failure announcement.
+- Clarified preview and incomplete statuses. Empty record counts now say **No new records** rather than implying a ledger match, and integrity text follows the actual verification result.
+
+Files changed in this pass: `ui/static/index.html`, `ui/static/style.css`, `ui/static/app.js`, this report, and the two screenshots below. Backend execution, model configuration, source data, and the existing task workflows were retained.
+
+Validation: JavaScript syntax and Git whitespace checks passed. Browser checks covered saved-task replay, populated scratchpad facts and notes, plain-text copying without emojis, and a longer request in an isolated preview. The long conversation overflowed within its bounded panel; Home scrolled to its beginning, and **Latest message** returned to the response. No browser console errors were recorded. This UI pass did not make live model calls.
+
+![Chat and scratchpad integrated into the task workspace](docs/ui-chat-scratchpad.png)
+
+![Long conversation scrolling within its own panel](docs/ui-scrollable-chat.png)
+
+## 22 October 2026 — Conversation as the primary interface
+
+Moved task entry into the conversation so Operon addresses the user directly and keeps requests, replies, and follow-up questions together.
+
+- Added a **Send** composer beneath the scrollable transcript. Enter sends a message; Shift+Enter inserts a line. Examples and **Preview task** remain available beside Send.
+- Added direct replies for greetings, help, and thanks without starting unnecessary jobs.
+- Preserved earlier turns when a new task or question is sent. The latest 100 messages and the current task context survive reloads in the same browser.
+- Added **New conversation** to clear the chat context while retaining the company ledger and saved task history.
+- Answered common follow-ups about amounts, due dates, vendors, source documents, checks, and status from the saved evidence report. These questions do not rerun tools or infer values from a changed ledger. Failed results carry an explicit verification caveat, and incomplete records do not produce invented fields.
+- Allowed **run it** after a verified preview to submit the same original goal for execution. **Preview task** always preserves preview mode, including for this follow-up.
+- Allowed **approve** and **decline** as chat replies when an action is pending. Decisions reuse the existing action fingerprint and policy gate. A preview message cannot authorize an actual pending action.
+- Positioned the restrained scratchpad beside the conversation, kept the composer visible below the messages, and collapsed detailed task activity and verification beneath the workspace.
+
+The new `/api/chat` endpoint routes messages through `operon/conversation.py` and delegates work to the existing run manager. The agent graph, user-added live model planning, sample data, and task tools are retained. No extra model call is required for supported conversational replies.
+
+Files changed in this pass: `operon/conversation.py`, `ui/app.py`, `ui/static/index.html`, `ui/static/app.js`, `ui/static/style.css`, `tests/test_conversation.py`, `README.md`, `ARCHITECTURE.md`, this report, and `docs/ui-conversation.png`.
+
+Validation: **81 tests passed**, including 17 conversational cases covering social replies without jobs, grounded follow-ups, verified-preview execution, preview isolation, natural approval/decline, stale context, and incomplete failed observations. JavaScript syntax and Git whitespace checks passed. Browser validation covered greeting → invoice preview → follow-up question → reload with retained messages, plus a high-value task paused for approval and declined through the composer. No browser console errors were recorded. These checks used offline planning and synthetic company data; no paid model calls were made.
+
+Limits: this is a task-scoped conversation with deterministic routing for supported follow-ups, not an unrestricted general chat model. It remembers the latest task context rather than resolving references across multiple old tasks. Editing a paused plan through missing-field clarification remains a proposed next improvement. Browser-local conversation storage is separate from SQLite task evidence and is not a synchronized chat archive.
+
+![Conversation with a task preview, follow-up answer, and adjacent scratchpad](docs/ui-conversation.png)
+
+## 22 October 2026 — Useful failure replies and source-linked company tools
+
+### Failure handling
+
+- Added a structured issue to unsuccessful evidence reports: a reason code, readable status, direct explanation, and useful next step. Chat, task status, scratchpad, report, and history now distinguish a missing source, missing information, unsupported work, a declined action, invalid data, a conflict, a failed tool, and an unverified result.
+- Removed internal verifier boilerplate from the primary reply. Detailed errors and checks remain in the evidence and expandable activity view.
+- An empty required lookup now fails verification and stops dependent actions. An explicit alternate search can still recover; a later successful search clears the earlier empty-result state.
+- A document read earlier in a task can no longer cause a success message after a later action fails. Partially applied ledger changes are disclosed, including the fact that they were not rolled back.
+- Resource claims follow actual observations. An unsupported or unattempted lookup never says the resource does not exist. A missing local file is described within the checked workspace scope.
+- Send **try again** after fixing a source to resubmit the previous goal through the normal planner, execution, and approval path. Failed previews retain preview mode. Questions such as **What went wrong?** explain the saved issue without creating another task.
+- Final scratchpad notes now use the same deduplicating `add_note` method as other observations.
+- Dashboard asset URLs include content hashes so a refresh loads changed JavaScript and CSS instead of retaining stale failure labels from an earlier version.
+
+### Three additional working tools
+
+| Tool | Actual work performed |
+| --- | --- |
+| `find_latest_signed_deal` | Reads company deal JSON files, excludes drafts/cancelled deals, compares actual signing dates, optionally filters a customer, and captures a catalogue manifest. Equal latest dates require clarification. |
+| `read_deal_quotation` | Follows the selected signed deal's explicit quotation link, reads the local quotation, and checks IDs, customer, amount, and currency. A missing link never falls back to an unrelated quotation. |
+| `search_company_records` | Searches text/JSON/Markdown/CSV document contents, ERP invoice snapshots, and vendor records together. Returns typed matches, excerpts, source hashes, an explicit result limit, and skipped-file warnings. |
+
+These tools work in the offline planner and are available to the optional live planner. They are read-only and allowed in previews. Existing invoice, onboarding, approval, and user-added tool capabilities were retained.
+
+### Novelty: verify the relationship and selection, not just the file
+
+The quotation workflow checks more than whether a document can be opened. Independent verification rereads the deal catalogue, checks its selection manifest, confirms the latest signed date, excludes unsigned deals, and verifies that the quotation belongs to that exact deal with matching fields. Source changes invalidate the result. Cross-source search similarly checks captured document hashes and current ledger snapshots.
+
+The scratchpad now includes **Source files** links. The source endpoint accepts only indices into a run's captured sandbox sources and checks the current file hash against the evidence before serving it as plain text. A changed source returns a clear conflict instead of displaying new content as if it were the captured evidence.
+
+Added synthetic company data: four deals and three quotation files. Acme is the latest signed deal; Company X has an unsigned draft excluded from selection. OmniCorp has a signed deal whose linked quotation is intentionally absent, giving the demo a real missing-resource case. No CRM connection, quotation sending, payment, or real company data is involved.
+
+### Demo requests
+
+1. **Get me the quotation for the latest deal signed.** Returns Acme quotation `QT-2026-105`, USD 24,000.00, linked to deal `DEAL-2026-105`, signed 2026-10-20. Open both source links and expand the independent checks.
+2. **Get the quotation for the latest signed deal with OmniCorp.** Finds the deal, explains that its linked quotation is unavailable, gives a correction step, and reports an unfinished task. It creates no ledger records.
+3. **Search company records for Acme.** Returns document, invoice, and vendor matches through the same graph.
+4. After correcting a missing source in the workspace, send **try again**. The worker retries the original goal, verifies the newly available source, and retains the original preview/execute mode.
+
+### Validation and limits
+
+- **108 tests passed** with offline planning, including latest-date selection, missing customers/quotations, ambiguity, malformed sources, mismatched tool output, catalogue changes, path confinement, combined search, incomplete searches, corrected-source retry, and source-view hash/scope checks.
+- JavaScript syntax and Git whitespace checks passed.
+- Browser checks verified the exact quotation request from the reported failure, populated deal/quotation facts, a working source link opening the actual quotation, a missing linked quotation with a direct explanation and next step, and no console errors. Initial checks used a separate offline server and synthetic data. The normal configured app was also exercised: its Groq request was unavailable, so both quotation checks completed through the disclosed offline fallback. Live model planning was not confirmed by this validation.
+- The Python wheel built offline using the available system build tools; its archive includes all four deal sources and three quotation files. The project virtual environment did not contain setuptools, so the packaging check used the already-installed system setuptools without installing dependencies.
+
+Quotation sources use local JSON, USD sample values, and signing dates with day precision. Company search is bounded keyword matching rather than semantic retrieval. Source hashes detect changes relative to a report; they do not prove authorship. Chat still uses the latest task context and does not edit paused plans through arbitrary dialogue. Durable ledger/checkpoint persistence and broader held-out task evaluation remain the highest-value next steps.
+
+Files changed in this pass include `operon/outcomes.py`, `operon/company_verification.py`, `operon/tools/company_tools.py`, the deal/quotation sample directories, tool registration and planning, scratchpad memory, observer/replanner/verifier/summarizer, evidence models and run history, the source API, conversation handling, UI files, packaging, regression tests, and the README/architecture documents.
+
+![Verified retrieval of a quotation from the latest signed deal](docs/ui-quotation-workflow.png)
+
+![A missing linked quotation addressed with a useful recovery instruction](docs/ui-missing-resource.png)
+
+## 22 October 2026 — Open evidence and friendlier task replies
+
+Made the conversation and evidence easier to read during an active task or demo.
+
+- Kept action details, task activity, verification, report evidence, vendor records, and every plan step expanded. Their disclosure arrows remain open and the sections do not collapse when clicked, so tool arguments and checks are always available for inspection.
+- Gave Operon messages a quiet green response surface with a left accent, while leaving user messages visually lighter. This separates the worker’s answer from the request without adding an avatar, emoji, gradient, or oversized chat bubble.
+- Highlighted the scratchpad outcome with a green verified treatment and a muted red attention treatment. The factual response and status remain readable as one result block.
+- Rewrote greetings, progress updates, approval prompts, help text, and common conversational replies in a warmer, direct voice. Final invoice, vendor, quotation, and document messages now lead with the useful result while retaining the same source and verification claims.
+- Added a dashboard regression check for permanently expanded disclosures and updated the README and architecture notes to describe the behavior.
+
+Files changed in this pass: `ui/static/index.html`, `ui/static/app.js`, `ui/static/style.css`, `operon/conversation.py`, `operon/nodes/summarizer.py`, `tests/test_dashboard.py`, `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: **108 tests passed**. JavaScript syntax and Git whitespace checks passed. A live browser run completed the latest-signed-deal quotation workflow and showed the new conversational answer, highlighted verified outcome, and permanently expanded activity, tool arguments, report evidence, and vendor records. The running app disclosed its offline planner fallback because Groq was unavailable.
+
+![Highlighted Operon response in the conversation](docs/ui-friendly-open-evidence.png)
+
+![Highlighted scratchpad outcome with expanded activity](docs/ui-highlighted-outcome.png)

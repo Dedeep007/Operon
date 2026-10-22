@@ -33,6 +33,8 @@ def replanner_node(state):
     if retries > settings.max_retries:
         return stop(f"Skipped step after {retries} attempts; stopped dependent actions.")
     message = error.message if error else ""
+    if error and error.error_type in {"AmbiguousResourceError", "CompanySourceError"}:
+        return stop("The company source needs clarification or correction before this action can be retried.")
     if "InvalidAmountError" in message:
         raw = step.tool_args.get("amount")
         try:
